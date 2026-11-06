@@ -85,7 +85,7 @@ Claude Code CLI and Codex CLI, and Fish Audio and ElevenLabs API keys.
 
 1. Set `FISH_API_KEY` and `ELEVENLABS_API_KEY` as user environment variables.
 2. Copy `openclaw/openclaw.example.json` to `openclaw/openclaw.json` and replace `<ULTRON_ROOT>`
-   with the folder you cloned this into. Do the same replacement in `persona.txt`.
+   with the folder you cloned this into. Do the same replacement in `persona.txt` and `openclaw/workspaces/*/AGENTS.md`.
 3. `cd fish-proxy && npm install`
 4. Run `GLaDOS-OpenClaw.cmd`, then open http://localhost:8765.
 
