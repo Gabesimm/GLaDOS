@@ -1,0 +1,797 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "${GLADOS_GATEWAY_TOKEN}"
+    },
+    "port": 18789,
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    },
+    "controlUi": {
+      "experimental": {
+        "customPlugins": true
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "<ULTRON_ROOT>/openclaw/workspaces/glados",
+      "cwd": "<ULTRON_ROOT>",
+      "model": {
+        "primary": "openai/gpt-6-luna",
+        "fallbacks": [
+          "anthropic/claude-sonnet-5",
+          "ollama/qwen3:8b"
+        ]
+      },
+      "models": {
+        "openai/gpt-6-luna": {
+          "agentRuntime": {
+            "id": "codex"
+          }
+        },
+        "openai/gpt-6-sol": {
+          "agentRuntime": {
+            "id": "codex"
+          }
+        },
+        "openai/gpt-6-astra": {
+          "agentRuntime": {
+            "id": "codex"
+          }
+        },
+        "anthropic/claude-sonnet-5": {
+          "agentRuntime": {
+            "id": "claude-cli"
+          }
+        },
+        "anthropic/claude-opus-5": {
+          "agentRuntime": {
+            "id": "claude-cli"
+          }
+        },
+        "ollama/qwen3:8b": {
+          "agentRuntime": {
+            "id": "openclaw"
+          }
+        }
+      },
+      "modelPolicy": {
+        "allow": [
+          "openai/gpt-6-luna",
+          "anthropic/claude-sonnet-5",
+          "openai/gpt-6-sol",
+          "openai/gpt-6-astra",
+          "anthropic/claude-opus-5",
+          "ollama/qwen3:8b"
+        ]
+      },
+      "thinkingDefault": "low",
+      "fastModeDefault": false,
+      "skipBootstrap": true,
+      "bootstrapMaxChars": 7000,
+      "bootstrapTotalMaxChars": 14000,
+      "heartbeat": {
+        "every": "0m"
+      },
+      "maxConcurrent": 2,
+      "timeoutSeconds": 600,
+      "systemAgent": {
+        "agentId": "glados"
+      },
+      "subagents": {
+        "delegationMode": "suggest",
+        "maxConcurrent": 2,
+        "maxSpawnDepth": 1,
+        "maxChildrenPerAgent": 2,
+        "runTimeoutSeconds": 480,
+        "requireAgentId": true
+      }
+    },
+    "ownership": "explicit",
+    "entries": {
+      "main": {
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/glados",
+        "name": "GLaDOS legacy alias",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/main/agent",
+        "subagents": {
+          "allowAgents": [
+            "gpt-light",
+            "gpt-work",
+            "gpt-deep",
+            "claude-work",
+            "claude-deep"
+          ],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "agents_list",
+            "sessions_spawn",
+            "sessions_yield",
+            "subagents",
+            "sessions_history",
+            "session_status",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      },
+      "glados": {
+        "name": "GLaDOS",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/glados",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/glados/agent",
+        "subagents": {
+          "allowAgents": [
+            "gpt-light",
+            "gpt-work",
+            "gpt-deep",
+            "claude-work",
+            "claude-deep"
+          ],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "agents_list",
+            "sessions_spawn",
+            "sessions_yield",
+            "subagents",
+            "sessions_history",
+            "session_status",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser",
+            "message"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          },
+          "message": {
+            "actions": {
+              "allow": [
+                "send"
+              ]
+            }
+          }
+        },
+        "model": {
+          "primary": "openai/gpt-6-luna",
+          "fallbacks": [
+            "anthropic/claude-sonnet-5",
+            "ollama/qwen3:8b"
+          ]
+        },
+        "bootstrapMaxChars": 24000,
+        "bootstrapTotalMaxChars": 28000
+      },
+      "gpt-light": {
+        "name": "gpt-light",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/gpt-light",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/gpt-light/agent",
+        "model": {
+          "primary": "antigravity-cli/gemini-3.8-flash",
+          "fallbacks": [
+            "anthropic/claude-sonnet-5",
+            "ollama/qwen3:8b"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        },
+        "models": {
+          "ollama/qwen3:8b": {
+            "agentRuntime": {
+              "id": "openclaw"
+            }
+          }
+        }
+      },
+      "gpt-work": {
+        "name": "gpt-work",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/gpt-work",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/gpt-work/agent",
+        "model": {
+          "primary": "openai/gpt-6-sol",
+          "fallbacks": [
+            "anthropic/claude-sonnet-5",
+            "ollama/qwen3:8b"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        },
+        "models": {
+          "ollama/qwen3:8b": {
+            "agentRuntime": {
+              "id": "openclaw"
+            }
+          }
+        }
+      },
+      "gpt-deep": {
+        "name": "gpt-deep",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/gpt-deep",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/gpt-deep/agent",
+        "model": {
+          "primary": "openai/gpt-6-astra",
+          "fallbacks": [
+            "anthropic/claude-opus-5",
+            "ollama/qwen3:8b"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        },
+        "models": {
+          "ollama/qwen3:8b": {
+            "agentRuntime": {
+              "id": "openclaw"
+            }
+          }
+        }
+      },
+      "claude-work": {
+        "name": "claude-work",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/claude-work",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/claude-work/agent",
+        "model": {
+          "primary": "anthropic/claude-sonnet-5",
+          "fallbacks": [
+            "openai/gpt-6-sol",
+            "ollama/qwen3:8b"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        },
+        "models": {
+          "ollama/qwen3:8b": {
+            "agentRuntime": {
+              "id": "openclaw"
+            }
+          }
+        }
+      },
+      "claude-deep": {
+        "name": "claude-deep",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/claude-deep",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/claude-deep/agent",
+        "model": {
+          "primary": "anthropic/claude-opus-5",
+          "fallbacks": [
+            "openai/gpt-6-astra",
+            "ollama/qwen3:8b"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        },
+        "models": {
+          "ollama/qwen3:8b": {
+            "agentRuntime": {
+              "id": "openclaw"
+            }
+          }
+        }
+      },
+      "glados-execute": {
+        "name": "GLaDOS confirmed work",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/glados-execute",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/glados-execute/agent",
+        "subagents": {
+          "allowAgents": [
+            "gpt-light-execute",
+            "gpt-work-execute",
+            "gpt-deep-execute",
+            "claude-work-execute",
+            "claude-deep-execute"
+          ],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "agents_list",
+            "sessions_spawn",
+            "sessions_yield",
+            "subagents",
+            "sessions_history",
+            "session_status",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      },
+      "gpt-light-execute": {
+        "name": "gpt-light-execute",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/gpt-light-execute",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/gpt-light-execute/agent",
+        "model": {
+          "primary": "openai/gpt-6-luna",
+          "fallbacks": [
+            "anthropic/claude-sonnet-5"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      },
+      "gpt-work-execute": {
+        "name": "gpt-work-execute",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/gpt-work-execute",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/gpt-work-execute/agent",
+        "model": {
+          "primary": "openai/gpt-6-sol",
+          "fallbacks": [
+            "anthropic/claude-sonnet-5"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      },
+      "gpt-deep-execute": {
+        "name": "gpt-deep-execute",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/gpt-deep-execute",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/gpt-deep-execute/agent",
+        "model": {
+          "primary": "openai/gpt-6-astra",
+          "fallbacks": [
+            "anthropic/claude-opus-5"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "computer",
+            "browser"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      },
+      "claude-work-execute": {
+        "name": "claude-work-execute",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/claude-work-execute",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/claude-work-execute/agent",
+        "model": {
+          "primary": "anthropic/claude-sonnet-5",
+          "fallbacks": [
+            "openai/gpt-6-sol"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      },
+      "claude-deep-execute": {
+        "name": "claude-deep-execute",
+        "workspace": "<ULTRON_ROOT>/openclaw/workspaces/claude-deep-execute",
+        "cwd": "<ULTRON_ROOT>",
+        "agentDir": "<ULTRON_ROOT>/openclaw/agents/claude-deep-execute/agent",
+        "model": {
+          "primary": "anthropic/claude-opus-5",
+          "fallbacks": [
+            "openai/gpt-6-astra"
+          ]
+        },
+        "subagents": {
+          "allowAgents": [],
+          "delegationMode": "suggest"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "ls",
+            "view_image",
+            "web_fetch",
+            "sessions_history",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process"
+          ],
+          "exec": {
+            "host": "gateway",
+            "security": "full",
+            "ask": "off"
+          }
+        }
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "codex": {
+        "enabled": true,
+        "config": {
+          "appServer": {
+            "homeScope": "user"
+          }
+        }
+      },
+      "openai": {
+        "enabled": true
+      },
+      "anthropic": {
+        "enabled": true
+      },
+      "memory-core": {
+        "enabled": false
+      },
+      "glados-3d-scene": {
+        "enabled": true
+      },
+      "google": {
+        "enabled": true
+      },
+      "antigravity": {
+        "enabled": true,
+        "config": {
+          "mode": "plan"
+        }
+      },
+      "discord": {
+        "enabled": true
+      },
+      "cua-computer": {
+        "enabled": true
+      },
+      "browser": {
+        "enabled": true
+      },
+      "memory-lancedb": {
+        "enabled": true
+      },
+      "active-memory": {
+        "enabled": true,
+        "config": {
+          "enabled": true,
+          "mode": "escalate",
+          "agents": [
+            "glados"
+          ],
+          "allowedChatTypes": [
+            "direct"
+          ],
+          "modelFallback": "google/gemini-3-flash",
+          "queryMode": "recent",
+          "promptStyle": "balanced",
+          "timeoutMs": 15000,
+          "maxSummaryChars": 220,
+          "persistTranscripts": false,
+          "logging": true
+        }
+      },
+      "fish-audio-speech": {
+        "enabled": true
+      }
+    },
+    "allow": [
+      "codex",
+      "openai",
+      "anthropic",
+      "glados-3d-scene",
+      "cua-computer",
+      "browser",
+      "memory-lancedb",
+      "active-memory",
+      "fish-audio-speech"
+    ],
+    "load": {
+      "paths": [
+        "<ULTRON_ROOT>\\openclaw\\plugins\\glados-3d-scene"
+      ]
+    },
+    "slots": {
+      "memory": "memory-lancedb"
+    }
+  },
+  "tools": {
+    "deny": [
+      "gateway",
+      "cron"
+    ],
+    "sessions": {
+      "visibility": "tree"
+    },
+    "elevated": {
+      "enabled": false
+    },
+    "exec": {
+      "host": "gateway",
+      "security": "full",
+      "ask": "off"
+    },
+    "media": {
+      "models": [
+        {
+          "type": "cli",
+          "command": "<ULTRON_ROOT>/tools/whisper-cpp/Release/whisper-cli.exe",
+          "args": [
+            "-m",
+            "<ULTRON_ROOT>/tools/whisper-cpp/Release/ggml-small.en.bin",
+            "-f",
+            "{{AttachmentPath}}",
+            "-nt",
+            "--no-gpu"
+          ],
+          "timeoutSeconds": 60,
+          "capabilities": [
+            "audio"
+          ]
+        }
+      ],
+      "audio": {
+        "enabled": true
+      }
+    }
+  },
+  "cron": {
+    "enabled": false
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434",
+        "api": "ollama",
+        "models": [
+          {
+            "id": "qwen3:8b",
+            "name": "Qwen3 8B (local fallback)",
+            "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 32768,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}

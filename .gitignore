@@ -1,0 +1,30 @@
+# Secrets: never commit
+.env
+*.token
+gateway.token
+*api*.txt
+*token*.txt
+.spotify_config.json
+.spotify_tokens.json
+openclaw/openclaw.json
+openclaw/credentials/
+openclaw/state/
+openclaw/agents/
+
+# Installed runtimes and downloaded models
+node/
+node_modules/
+ollama/
+tools/
+
+# Runtime output
+*.log
+uploads/
+outbox/
+backups/
+scratch/
+
+# 3D assets (not redistributable: see README)
+*.glb
+*.blend
+*.blend1

@@ -1,0 +1,23 @@
+{
+  "id": "glados-3d-scene",
+  "name": "GLaDOS 3D Scene",
+  "description": "3D GLaDOS workspace replacement surface for the Control UI",
+  "categories": [
+    "other"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "controlUi": {
+    "entry": "dist/control-ui/index.js"
+  },
+  "version": "1.0.0",
+  "contracts": {
+    "tools": []
+  }
+}

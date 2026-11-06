@@ -1,0 +1,15 @@
+{
+  "source": "<DOWNLOADS>\\EDIT_sp_a2_core_PACKED.blend",
+  "sourceSHA256": "908b5a1d0329d781ed5790c2087409cdce2dbb39f68a6293b7905a3213a6e239",
+  "sourceUnchanged": true,
+  "sourceMeshes": 1062,
+  "materials": 112,
+  "images": 126,
+  "blenderAnchor": [
+    -0.00549096055328846,
+    0.08513906598091125,
+    5.585833549499512
+  ],
+  "attachment": "glados_disc_base_reference top; exported origin; support omitted to retain existing rig",
+  "bytes": 42140496
+}

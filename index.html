@@ -1,0 +1,1647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta id="phoneTheme" name="theme-color" content="#090909">
+<title>GLaDOS</title>
+<link rel="icon" id="favicon" href="">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root {
+    --level: 0;           /* 0..1, driven by the voice while speaking */
+    --red: #d0101c;
+    --text: #25292c;
+    --muted: #5f6569;
+    --faint: #8b9195;
+    --line: #b3b8bb;
+    --ink: #1c1f21;
+    --blue: #27a2ff;
+    --orange: #ff8a1c;
+    --panel: rgba(250, 251, 251, .9);
+    /* Bahnschrift ships with Windows and is close to the DIN lettering on Aperture signage */
+    --font: "Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; width: 100%; margin: 0; max-width: 100%; overflow-x: hidden; }
+  body {
+    /* pale grey test-chamber wall: square panel seams over a soft light falloff */
+    background-color: #071018;
+    background-image:
+      linear-gradient(rgba(60,70,76,.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(60,70,76,.09) 1px, transparent 1px),
+      radial-gradient(ellipse at 50% 38%, #f4f5f6 0%, #dde0e2 55%, #b7bcbf 100%);
+    background-size: 96px 96px, 96px 96px, 100% 100%;
+    background-position: center top;
+    color: var(--text);
+    font: 15px/1.5 var(--font);
+    display: flex; flex-direction: column; align-items: center;
+    overflow-x: hidden; overflow-y: auto; user-select: none;
+  }
+
+  header {
+    position: relative; z-index: 10;
+    width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px;
+    /* force its own composited layer so the WebGL canvas in .stage can't jump in front of it */
+    transform: translateZ(0); will-change: transform;
+    background: var(--panel); border: 1px solid #c3c8cb; border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 6px 18px rgba(40,48,54,.12);
+  }
+  /* Aperture Science logo and wordmark, centred over the chamber */
+  .brand {
+    position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px; color: var(--ink); pointer-events: none;
+    font-size: 13px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; white-space: nowrap;
+  }
+  .brand svg { width: 28px; height: 28px; }
+  @media (max-width: 1100px) { .brand span { display: none; } }
+
+  /* white sign panels like the ones on the test-chamber walls */
+  .panel {
+    background: var(--panel); border: 1px solid #c3c8cb; border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 6px 18px rgba(40,48,54,.12);
+  }
+  .sign-title {
+    font-size: 11px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--ink);
+    border-bottom: 2px solid var(--ink); padding-bottom: 6px;
+  }
+
+  /* ---------- test chamber sign ---------- */
+  #chamber {
+    position: fixed; z-index: 1; left: 22px; top: 50%; transform: translateY(-50%); width: 224px; padding: 18px 18px 16px;
+  }
+  .ch-num { font-size: 104px; line-height: .9; font-weight: 300; color: var(--ink); border-bottom: 2px solid var(--ink); padding-bottom: 10px; }
+  .ch-prog { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; font-size: 13px; color: var(--ink); }
+  .ch-prog i { flex: 1; height: 6px; background: #d9dcde; position: relative; }
+  .ch-prog b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); transition: width .6s; }
+  .ch-icons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding-bottom: 14px; border-bottom: 1px solid #c3c8cb; }
+  .ch-icons svg { display: block; width: 100%; aspect-ratio: 1; background: var(--ink); border-radius: 3px; }
+  .ch-foot { margin-top: 10px; font-size: 10px; line-height: 1.5; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  @media (max-width: 1000px) { #chamber { display: none; } }
+  .mic-pick { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; min-width: 0; }
+  #mic {
+    background: #f2f3f4; color: var(--text); border: 1px solid var(--line); border-radius: 999px;
+    font: inherit; font-size: 12px; padding: 5px 10px; max-width: 280px; outline: none; cursor: pointer; border-radius: 3px;
+  }
+  #mic:focus { border-color: #7d858a; }
+  .ghost {
+    background: rgba(255,255,255,.5); border: 1px solid var(--line); color: var(--muted);
+    font: inherit; font-size: 11px; padding: 5px 12px; border-radius: 3px; cursor: pointer;
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  .ghost:hover { color: var(--text); border-color: #7d858a; }
+  .controls { display: flex; align-items: center; gap: 12px; }
+  .switch { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; }
+  .switch input {
+    appearance: none; margin: 0; width: 30px; height: 16px; border-radius: 999px; position: relative; cursor: pointer; outline: none;
+    background: #eceeef; border: 1px solid var(--line); transition: background .2s, border-color .2s;
+  }
+  .switch input::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--faint); transition: transform .2s, background .2s;
+  }
+  .switch input:checked { background: var(--blue); border-color: var(--blue); }
+  .switch input:checked::after { transform: translateX(14px); background: #fff; }
+  .switch input:disabled { opacity: .4; cursor: default; }
+  @media (max-width: 640px) {
+    header { flex-direction: column; align-items: center; gap: 8px; padding: 10px 14px 0; }
+    .brand { position: static; transform: none; }
+    .mic-pick, .controls { flex-wrap: wrap; justify-content: center; }
+  }
+
+  main {
+    position: relative; z-index: 1;
+    flex: 1; width: 100%; max-width: 760px; padding: 0 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 24px;
+  }
+
+  /* ---------- the bubble ---------- */
+  /* the room now fills the whole viewport behind the UI panels, instead of a small centred bubble */
+  .stage { position: fixed; inset: 0; width: auto; height: 100vh; z-index: 0; }
+  .orb {
+    position: relative; width: 100%; height: 100%;
+    cursor: pointer; touch-action: pan-y; -webkit-tap-highlight-color: transparent;
+  }
+  /* GLaDOS herself is a three.js scene rendered into #gladosCanvas; every state is handled in the script */
+  .bubble { position: absolute; inset: 0; overflow: hidden; }
+  #gladosCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+  .ring { display: none; }
+
+  /* ---------- portal ----------
+     An oval portal opens behind her: blue while she listens, orange while she speaks,
+     swelling slightly with the voice. Capped in size so it stays a portal-sized accent
+     now that the stage spans the full screen, instead of growing to match it. */
+  @property --swirl { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  .portal {
+    --pc: 39, 162, 255;
+    position: absolute; left: 50%; top: 50%; width: min(56%, 420px); height: min(84%, 630px); border-radius: 50%; pointer-events: none;
+    transform: translate(-50%, -50%) scale(calc(.94 + var(--level) * .08));
+    opacity: 0; transition: opacity .45s;
+    border: 5px solid rgb(var(--pc));
+    box-shadow: 0 0 28px 8px rgba(var(--pc), .55), inset 0 0 50px 14px rgba(var(--pc), .45);
+    background: radial-gradient(ellipse, rgba(var(--pc), .04) 40%, rgba(var(--pc), .28) 100%);
+  }
+  .portal::before {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from var(--swirl), transparent, rgba(255,255,255,.5), transparent 30%, transparent 50%, rgba(255,255,255,.3), transparent 80%);
+    -webkit-mask: radial-gradient(ellipse, transparent 60%, #000 72%); mask: radial-gradient(ellipse, transparent 60%, #000 72%);
+    animation: swirl 2.6s linear infinite;
+  }
+  @keyframes swirl { to { --swirl: 360deg; } }
+  body.listening .portal { opacity: 1; --pc: 39, 162, 255; }
+  body.speaking .portal { opacity: 1; --pc: 255, 138, 28; }
+
+  /* ---------- captions ---------- */
+'  .captions {
+    position: fixed; z-index: 1; left: 50%; bottom: 148px; width: min(520px, calc(100vw - 36px));
+    min-height: 104px; background: rgba(6, 13, 18, .62); border-color: rgba(194, 220, 232, .34);
+    color: #edf4f7; backdrop-filter: blur(5px); transform: translateX(-50%) translateZ(0);
+  }
+  #status { color: #eaf3f7; }
+  #heard { color: #c1d0d8; }
+  #heard.live, #reply { color: #f2f6f8; }
+'  .captions {
+    width: 100%; min-height: 150px; text-align: center; display: flex; flex-direction: column; gap: 10px; padding: 14px 22px;
+    /* force its own composited layer so the WebGL canvas in .stage can't jump in front of it */
+    transform: translateZ(0); will-change: transform;
+  }
+  #status { color: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; min-height: 18px; }
+  #heard { color: var(--muted); font-style: italic; min-height: 22px; }
+  #heard.live { color: var(--text); }
+  #reply { font-size: 17px; line-height: 1.55; max-height: 30vh; overflow-y: auto; user-select: text; }
+  html.no-captions #heard, html.no-captions #reply { visibility: hidden; }
+
+  .confirm-row { display: none; gap: 12px; justify-content: center; margin-top: 4px; }
+  body[data-pending="1"] .confirm-row { display: flex; }
+  .btn {
+    font: inherit; font-weight: 600; padding: 9px 26px; border-radius: 3px; cursor: pointer; border: 1px solid transparent;
+    letter-spacing: .14em; text-transform: uppercase; font-size: 13px;
+  }
+  .btn.yes { background: var(--blue); color: #fff; box-shadow: 0 0 16px rgba(39, 162, 255, .45); }
+  .btn.yes:hover { background: #45b0ff; }
+  .btn.no { background: #fff; color: var(--ink); border-color: var(--orange); box-shadow: 0 0 12px rgba(255, 138, 28, .25); }
+  .btn.no:hover { background: #fff6ee; }
+
+  /* ---------- live PC stats ---------- */
+  #stats {
+    position: fixed; z-index: 1; right: 22px; top: 50%; transform: translateY(-50%); width: 224px; padding: 16px;
+    display: flex; flex-direction: column; gap: 16px; opacity: 0; transition: opacity .6s; pointer-events: none;
+  }
+  #stats.on { opacity: 1; }
+  .stat-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+  .stat-head b { font-weight: 600; color: var(--ink); letter-spacing: 0; text-transform: none; font-size: 12px; }
+  .stat canvas { display: block; width: 190px; height: 30px; margin-top: 4px; }
+  @media (max-width: 1000px) { #stats { display: none; } }
+
+  /* ---------- footer ---------- */
+  footer { position: relative; z-index: 1; width: 100%; max-width: 760px; padding: 0 20px 22px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .input-row { display: flex; gap: 8px; width: 100%; max-width: 520px; }
+  #typed {
+    flex: 1; min-width: 0; background: rgba(255,255,255,.6); color: var(--text);
+    border: 1px solid var(--line); border-radius: 3px; padding: 10px 18px; font: inherit; outline: none;
+  }
+  #typed:focus { border-color: var(--blue); box-shadow: 0 0 10px rgba(39, 162, 255, .3); }
+  #typed::placeholder { color: var(--faint); }
+  #photo { flex: none; }
+  .hint { color: var(--faint); font-size: 12px; text-align: center; }
+  #filesPanel { width: 100%; max-width: 520px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+  /* Author display rules override the browser's default [hidden] rule unless restated here. */
+  #filesPanel[hidden] { display: none; }
+  #filesPanel .files-empty { color: var(--muted); font-size: 12px; }
+  #filesPanel a { color: var(--text); font-size: 13px; text-decoration: none; display: flex; justify-content: space-between; gap: 10px; }
+  #filesPanel a:hover { color: var(--blue); }
+  #filesPanel .files-size { color: var(--faint); font-size: 11px; white-space: nowrap; }
+  kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font: inherit; font-size: 11px; color: var(--muted); }
+  /* Chamber HUD captions: keep speech and replies clearly readable above the composer. */
+  .captions {
+    position: fixed; z-index: 5; left: 50%; right: auto; bottom: 190px;
+    width: min(600px, calc(100vw - 32px)); min-height: 84px; max-height: 38vh; overflow-y: auto;
+    padding: 12px 20px; transform: translateX(-50%) translateZ(0); text-align: center;
+    background: rgba(5, 12, 17, .82); color: #f2f7fa;
+    border: 1px solid rgba(190, 218, 232, .48); box-shadow: 0 6px 24px rgba(0,0,0,.34);
+    backdrop-filter: blur(7px);
+  }
+  #status { color: #e8f5fb; }
+  #heard { color: #c5d5dd; }
+  #heard.live, #reply { color: #f4f7f8; }
+  @media (max-height: 620px) { .captions { bottom: 145px; max-height: 30vh; } }
+  @media (max-width: 640px) {
+    html, body { width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
+    body { touch-action: pan-y; }
+    .captions { bottom: 138px; max-height: 30vh; width: calc(100% - 32px); left: 16px; right: 16px; transform: translateZ(0); }
+    /* Blend the bright chamber platform fully into the dark backdrop behind phone controls. */
+    .stage::after {
+      content: ''; position: absolute; inset: auto 0 0; height: 360px; pointer-events: none;
+      background: linear-gradient(to bottom, transparent 0%, #071018 16%, #071018 100%);
+    }
+  }</style>
+<style>
+  .view-switch { display:flex; align-items:center; gap:3px; padding:3px; border:1px solid var(--line); border-radius:4px; background:rgba(0,0,0,.04); }
+  .view-switch button { border:0; border-radius:2px; padding:5px 9px; background:transparent; color:var(--muted); font:inherit; font-size:10px; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
+  .view-switch button[aria-pressed="true"] { background:#20262b; color:#d9f7df; }
+  body.terminal { min-height:100vh; --term:#050505; --term-panel:#0b0b0b; --term-line:#604a17; --term-green:#f4bf45; --term-dim:#bd9137; --term-white:#f4bf45; background:#090909; color:var(--term-white); font:14px/1.55 "Cascadia Code","Consolas","Lucida Console",monospace; align-items:stretch; }
+  body.terminal::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.13; background:repeating-linear-gradient(transparent 0 3px,rgba(0,0,0,.32) 4px); }
+  body.terminal header { z-index:6; width:auto; margin:14px 18px 0; padding:10px 14px; border:1px solid var(--term-line); border-radius:6px 6px 0 0; background:#0b0b0b; box-shadow:none; color:var(--term-white); }
+  body.terminal .brand { display:none; }
+  .terminal-title[hidden] { display:none; }
+  body.terminal .terminal-title { display:block; color:var(--term-green); font-size:12px; letter-spacing:.02em; }
+  body.terminal .mic-pick, body.terminal .switch { color:var(--term-dim); }
+  body.terminal #mic, body.terminal .ghost { background:#171717; border-color:var(--term-line); border-radius:3px; color:var(--term-green); font:inherit; font-size:11px; }
+  body.terminal .view-switch { border-color:var(--term-line); background:#171717; }
+  body.terminal .view-switch button { color:var(--term-dim); }
+  body.terminal .view-switch button[aria-pressed="true"] { background:#261d0b; color:var(--term-green); }
+  body.terminal main { z-index:2; flex:1 0 auto; width:auto; max-width:none; padding:0 18px 24px; margin-top:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(250px,34%); gap:0; align-items:stretch; }
+  body.terminal main::before { content:"- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - "; position:absolute; z-index:4; left:0; right:34%; top:68%; height:1em; overflow:hidden; white-space:nowrap; color:var(--term-green); font:14px/1 "Cascadia Code",Consolas,monospace; pointer-events:none; }
+  body.terminal main::after { content:"|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|"; position:absolute; z-index:4; top:0; bottom:0; left:66%; overflow:hidden; color:var(--term-green); font:14px/1.15 "Cascadia Code",Consolas,monospace; white-space:pre; pointer-events:none; }
+  body.terminal .stage { position:relative; inset:auto; width:auto; height:auto; min-height:430px; grid-column:2; grid-row:1; border:0; background:var(--term); }
+  body.terminal .orb { min-height:430px; }
+  body.terminal .terminal-stats { position:absolute; z-index:2; left:24px; right:14px; top:72%; bottom:14px; margin:0; overflow:hidden; color:var(--term-green); font:clamp(12px,1.15vw,17px)/1.42 "Cascadia Code",Consolas,monospace; white-space:pre-wrap; }
+
+  body.terminal .bubble { display:none; }
+  body.terminal .portal { display:none; }
+  body.terminal .captions { position:relative; inset:auto; grid-column:1; grid-row:1; width:auto; min-height:430px; max-height:60vh; border:0; border-radius:0; padding:18px 20px; overflow:auto; text-align:left; display:flex; flex-direction:column; gap:12px; align-items:stretch; transform:none; background:var(--term); box-shadow:none; backdrop-filter:none; color:var(--term-white); }
+  body.terminal #status { color:var(--term-green); font-size:12px; letter-spacing:.04em; text-align:left; }
+  body.terminal #status::before { content:"["; } body.terminal #status::after { content:"]"; }
+  body.terminal #heard { display:block; width:100%; flex:0 0 auto; min-height:0; margin:0; color:var(--term-dim); text-align:left; }
+  body.terminal #heard.live { color:var(--term-white); }
+  body.terminal #reply { display:block; clear:both; width:100%; flex:1 0 auto; margin:10px 0 0; max-height:none; color:var(--term-white); font-size:14px; line-height:1.65; text-align:left; white-space:pre-wrap; }
+  body.terminal .confirm-row { justify-content:flex-start; }
+  body.terminal .btn { border-radius:2px; font:inherit; font-size:11px; letter-spacing:.04em; }
+  body.terminal .btn.yes { background:#261d0b; color:var(--term-green); box-shadow:none; }
+  body.terminal .btn.no { background:#202020; border-color:var(--term-line); color:var(--term-white); box-shadow:none; }
+  body.terminal #chamber, body.terminal #stats { display:none; }
+  body.terminal footer { z-index:2; width:auto; max-width:none; padding:0 18px 20px; align-items:stretch; }
+  body.terminal .input-row { max-width:none; }
+  body.terminal #typed { border:0; border-bottom:1px solid var(--term-line); border-radius:0; background:transparent; color:var(--term-white); font:inherit; box-shadow:none; }
+  body.terminal #typed:focus { border-color:var(--term-green); box-shadow:none; outline:none; }
+  body.terminal #typed::placeholder { color:transparent; }
+  body.terminal .hint { color:var(--term-dim); }
+  body.terminal #filesPanel { max-width:none; border-color:var(--term-line); background:#171717; }
+  body.terminal #filesPanel a { color:var(--term-green); }
+  body.terminal kbd { border-color:var(--term-line); border-radius:2px; color:var(--term-green); }
+   .term-ascii { display:none; position:absolute; z-index:1; inset:10px 440px auto auto; width:max-content; max-width:100%; height:auto; align-items:flex-start; justify-content:flex-end; overflow:hidden; color:var(--term-green); font:clamp(9px,1.25vw,17px)/1.08 "Cascadia Code",Consolas,monospace; white-space:pre; text-align:right; transform:scaleX(-1); transform-origin:top right; text-shadow:none; }
+  body.terminal .term-ascii { display:flex; }
+</style>
+<style id="phone-layout-styles">
+  .phone-only { display: none; }
+  /* Phone terminal: the same orange monospace shell, with an always-visible view switch. */
+  @media (max-width: 760px), (max-width: 1000px) and (pointer: coarse) {
+    html.phone-terminal { height: auto; min-height: 100%; background: #090909; }
+    body.phone-layout {
+      --term: #050505; --term-line: #604a17; --term-green: #f4bf45; --term-dim: #bd9137; --term-white: #f4bf45;
+      height: auto; min-height: 100vh; min-height: 100svh; width: 100%; max-width: 100%;
+      padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+      background: #090909; color: var(--term-green); font: 13px/1.5 "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+      display: flex; flex-direction: column; align-items: stretch; gap: 0; overflow: visible;
+    }
+    body.phone-layout::before, body.phone-layout main::before, body.phone-layout main::after { display: none; }
+    body.phone-layout .phone-only { display: flex; }
+    body.phone-layout header {
+      position: relative; width: 100%; margin: 0; padding: 8px; display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+      border: 1px solid var(--term-line); border-radius: 0; background: #0b0b0b; color: var(--term-green); box-shadow: none; transform: none; will-change: auto;
+    }
+    body.phone-layout header > .brand, body.phone-layout header > .terminal-title { display: none; }
+    .phone-terminal-title { font: inherit; font-size: 11px; letter-spacing: 0; }
+    body.phone-layout #phoneViewbar { align-items: center; gap: 8px; }
+    body.phone-layout .view-switch { display: flex; flex: 1; gap: 0; padding: 0; min-width: 0; border: 1px solid var(--term-line); border-radius: 0; background: transparent; }
+    body.phone-layout .view-switch button { flex: 1; min-height: 44px; padding: 6px; border-radius: 0; color: var(--term-dim); font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; }
+    body.phone-layout .view-switch button[aria-pressed="true"] { color: var(--term-green); background: #261d0b; text-decoration: underline; text-underline-offset: 3px; }
+    body.phone-layout .phone-icon-button, body.phone-layout .ghost { min-height: 44px; padding: 6px 8px; border: 1px solid var(--term-line); border-radius: 0; background: transparent; color: var(--term-green); font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; cursor: pointer; }
+    body.phone-layout #phoneSettings { flex: none; }
+    body.phone-layout #phoneSettings[aria-expanded="true"] { background: #261d0b; }
+    body.phone-layout:not(.phone-settings-open) header > .mic-pick,
+    body.phone-layout:not(.phone-settings-open) header > .controls { display: none; }
+    body.phone-layout .controls { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px 14px; width: 100%; min-width: 0; }
+    body.phone-layout .mic-pick { display: flex; width: 100%; justify-content: space-between; font-size: 12px; color: var(--term-dim); }
+    body.phone-layout #mic { min-width: 0; max-width: 80%; min-height: 44px; padding: 6px; border: 1px solid var(--term-line); border-radius: 0; background: #111; color: var(--term-green); font: inherit; font-size: 16px; }
+    body.phone-layout .switch { min-height: 44px; color: var(--term-dim); font-size: 12px; }
+    body.phone-layout .switch input:checked { background: var(--term-green); border-color: var(--term-green); }
+    body.phone-layout #chamber, body.phone-layout #stats, body.phone-layout .term-ascii { display: none; }
+    body.phone-layout main { display: flex; flex-direction: column; align-items: stretch; gap: 0; position: relative; width: 100%; max-width: none; min-width: 0; margin: 0; padding: 0; flex: 1 0 auto; }
+    body.phone-layout .stage { display: block; position: relative; inset: auto; width: 100%; height: 48vh; height: 48svh; min-height: 260px; max-height: 520px; margin: 8px 0 0; border: 1px solid var(--term-line); border-radius: 0; background: #071018; overflow: hidden; }
+    body.phone-layout.terminal .stage { display: none; }
+    body.phone-layout .orb { display: block; width: 100%; height: 100%; min-height: 0; }
+    body.phone-layout .stage::after { display: none; }
+    body.phone-layout .captions { display: flex; position: relative; inset: auto; width: 100%; min-width: 0; min-height: 200px; max-height: none; height: auto; margin: 0; padding: 16px 8px; flex: 1 0 auto; gap: 10px; border: 0; border-radius: 0; box-shadow: none; background: var(--term); color: var(--term-green); text-align: left; transform: none; will-change: auto; backdrop-filter: none; overflow: visible; }
+    body.phone-layout #status { min-height: 0; color: var(--term-green); font: inherit; font-size: 12px; letter-spacing: 0; text-transform: none; overflow-wrap: anywhere; }
+    body.phone-layout #status:empty { display: none; }
+    body.phone-layout #status::before { content: '['; }
+    body.phone-layout #status::after { content: ']'; }
+    body.phone-layout #heard { min-height: 0; margin: 0; color: var(--term-dim); font: inherit; font-size: 13px; font-style: normal; overflow-wrap: anywhere; }
+    body.phone-layout #heard:empty, body.phone-layout #reply:empty { display: none; }
+    body.phone-layout #reply { min-height: 0; max-height: 45vh; max-height: 45svh; flex: 0 1 auto; margin: 0; color: var(--term-green); font: inherit; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
+    body.phone-layout .phone-empty { display: block; margin: 0; color: var(--term-green); font: inherit; }
+    body.phone-layout .phone-empty[hidden] { display: none; }
+    body.phone-layout #phoneStats { display: flex; flex-direction: column; flex: none; gap: 2px; padding: 10px 8px; border-top: 1px dashed var(--term-line); border-bottom: 1px dashed var(--term-line); color: var(--term-green); background: var(--term); }
+    body.phone-layout #phoneStats #statsState { display: block; align-self: flex-end; font: inherit; font-size: 10px; color: var(--term-dim); }
+    body.phone-layout #phoneStats #statsState::before { content: '['; }
+    body.phone-layout #phoneStats #statsState::after { content: ']'; }
+    body.phone-layout #phoneStats #terminalStats { display: block; position: relative; inset: auto; width: 100%; min-width: 0; margin: 0; padding: 0; max-height: none; border: 0; color: var(--term-green); background: transparent; font: inherit; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow: visible; overflow-wrap: anywhere; }
+    body.phone-layout .confirm-row { gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
+    body.phone-layout .btn { min-height: 44px; padding: 8px 12px; border: 1px solid var(--term-line); border-radius: 0; background: #111; color: var(--term-green); box-shadow: none; font: inherit; font-size: 12px; letter-spacing: 0; }
+    body.phone-layout footer { position: relative; width: 100%; max-width: none; padding: 10px 0 0; margin: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+    body.phone-layout .phone-voicebar { display: flex; gap: 8px; }
+    body.phone-layout #phoneTalk { display: flex; flex: 1; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 6px; border: 1px solid var(--term-line); border-radius: 0; background: transparent; color: var(--term-green); font: inherit; font-size: 12px; touch-action: none; -webkit-touch-callout: none; user-select: none; }
+    body.phone-layout.listening #phoneTalk { background: #261d0b; border-color: var(--term-green); }
+    body.phone-layout #phoneTalk:disabled, body.phone-layout #phoneSend:disabled { opacity: .45; }
+    body.phone-layout #phoneTalk svg, body.phone-layout .phone-icon-button svg { width: 16px; height: 16px; }
+    body.phone-layout #phoneStop { width: 44px; flex: none; }
+    body.phone-layout #phoneStop[hidden] { display: none; }
+    body.phone-layout .input-row { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 6px; width: 100%; min-width: 0; max-width: none; }
+    body.phone-layout #typed { grid-column: 1 / 6; grid-row: 1; width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 0; border-bottom: 1px solid var(--term-line); border-radius: 0; background: transparent; color: var(--term-green); box-shadow: none; font: inherit; font-size: 16px; }
+    body.phone-layout #typed::placeholder { color: var(--term-dim); }
+    body.phone-layout #phoneSend { grid-column: 6; grid-row: 1; justify-content: center; align-items: center; width: 100%; min-height: 44px; }
+    body.phone-layout #photo { grid-column: 1 / 3; grid-row: 2; }
+    body.phone-layout #video { grid-column: 3 / 5; grid-row: 2; }
+    body.phone-layout #filesBtn { grid-column: 5 / 7; grid-row: 2; }
+    body.phone-layout #filesPanel { width: 100%; max-width: none; padding: 8px; border: 1px solid var(--term-line); border-radius: 0; box-shadow: none; background: var(--term); }
+    body.phone-layout #filesPanel a { min-height: 44px; align-items: center; color: var(--term-green); overflow-wrap: anywhere; }
+    body.phone-layout #filesPanel .files-size, body.phone-layout #filesPanel .files-empty { color: var(--term-dim); }
+    body.phone-layout #hint { display: none; }
+    body.phone-layout button:focus-visible, body.phone-layout input:focus-visible, body.phone-layout select:focus-visible { outline: 1px solid var(--term-green); outline-offset: 2px; }
+  }
+</style>
+</head>
+<body class="idle">
+  <header>
+    <div class="phone-terminal-title phone-only">Windows PowerShell — GLaDOS</div>
+    <div id="phoneViewbar" class="phone-only">
+      <button type="button" id="phoneSettings" class="phone-icon-button" aria-label="Options" aria-expanded="false" aria-controls="micOptions agentControls">Options</button>
+    </div>
+    <span class="terminal-title" hidden>Windows PowerShell &nbsp; — &nbsp; GLaDOS Enrichment Shell</span>
+    <label class="mic-pick" id="micOptions">Mic <select id="mic" title="Which microphone GLaDOS listens to"><option value="">Default microphone</option></select></label>
+    <div class="brand">
+      <svg viewBox="-21 -21 42 42" aria-hidden="true">
+        <defs>
+          <mask id="aperture">
+            <rect x="-21" y="-21" width="42" height="42" fill="#fff"/>
+            <circle r="7" fill="#000"/>
+            <g stroke="#000" stroke-width="1.8">
+              <line x1="7" y1="0" x2="7" y2="21"/><line x1="7" y1="0" x2="7" y2="21" transform="rotate(45)"/>
+              <line x1="7" y1="0" x2="7" y2="21" transform="rotate(90)"/><line x1="7" y1="0" x2="7" y2="21" transform="rotate(135)"/>
+              <line x1="7" y1="0" x2="7" y2="21" transform="rotate(180)"/><line x1="7" y1="0" x2="7" y2="21" transform="rotate(225)"/>
+              <line x1="7" y1="0" x2="7" y2="21" transform="rotate(270)"/><line x1="7" y1="0" x2="7" y2="21" transform="rotate(315)"/>
+            </g>
+          </mask>
+        </defs>
+        <circle r="20" fill="currentColor" mask="url(#aperture)"/>
+      </svg>
+      <span>Aperture Science</span>
+    </div>
+    <div class="controls" id="agentControls">
+      <div class="view-switch" role="group" aria-label="Frontend appearance"><button type="button" id="sceneView" aria-pressed="true">3D scene</button><button type="button" id="terminalView" aria-pressed="false">Terminal</button></div>
+      <label class="switch" title="Listen for “Hey GLaDOS”"><input type="checkbox" id="wake" checked> Hey GLaDOS</label>
+      <label class="switch" title="Show what you said and GLaDOS's replies"><input type="checkbox" id="captions" checked> Captions</label>
+      <button class="ghost" id="reset" title="Start a fresh conversation">New conversation</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="stage">
+      <div class="orb" id="orb" aria-label="Hold to talk to GLaDOS" role="button">
+        <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+        <div class="portal"></div>
+        <div class="bubble"><canvas id="gladosCanvas"></canvas></div>
+        <pre class="term-ascii" aria-label="ASCII art portrait of GLaDOS">⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿ ⣷⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⢠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⡇⠀⠀⠀⠀⠀⢀⡀⠀⠈⢲⣼⣿⣿⣷⣿⣿⣿⣾⣿⣿⣷⣿⣿⣿⣾⣿⣿
+⣿⣿⠀⠀⠀⠀⠀⠀⢸⣿⡄⠀⣿⣿⣿⣼⣿⣿⣧⣿⣿⣿⣼⣿⣿⣼⣿⣿⣿⣿
+⣿⣇⠀⠀⠀⠀⠀⠀⠈⠉⡃⣸⣿⣽⣿⣿⣯⣿⣿⣿⣽⣿⣿⣯⣿⣿⣿⣽⣿⣿
+⠿⣀⠀⠀⠀⠀⠀⠀⠀⠀⣨⣿⣿⣿⣿⣿⣿⣿⣯⣿⣿⣿⣽⣿⣿⣿⣿⣿⣿⣿
+⠀⠀⠀⠀⠀⠀⣀⠀⠀⠨⠁⠘⠟⠉⠁⠀⠉⣿⣿⣿⣽⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⠀⠀⠀⢀⣤⣾⣿⣷⣄⡀⠀⠠⠀⠀⠀⠀⠀⠈⣻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⠀⠀⠀⢟⡻⣿⣿⣿⣿⠆⢂⢄⠀⠀⠠⠁⠀⠀⢸⢿⢿⠿⠿⠿⣿⣿⣿⣾⣿⣿
+⢀⣠⣴⣿⣶⣝⢿⡿⠋⣴⣿⢟⣄⠀⠠⠀⠀⠀⠄⢹⣿⣸⣾⣿⣷⣶⣽⡻⣿⣿
+⣾⣿⣿⣿⣿⣿⣶⣤⣾⣷⡵⠋⠂⠀⠀⠁⡀⢈⠃⣿⡟⣿⣿⣿⣿⣿⣿⣿⣮⢻
+⣿⣿⣿⣿⣿⣇⣿⣇⣼⠏⠁⠀⢰⠀⠀⠀⠴⠀⣰⣿⢷⣿⡏⠄⠀⠠⠈⠹⣿⣿
+⣿⣿⣿⣿⣿⣿⣌⠛⠁⠀⠀⠀⠀⡇⠀⢀⠀⢬⣿⢯⣼⣿⡅⣀⣀⠒⡀⠈⣹⣿
+⠿⣿⣿⣿⢯⣛⠛⠣⡀⠀⠀⠀⠀⢱⠨⡈⢠⣿⣯⣿⣿⠗⣔⣛⡻⠆⠇⠠⣼⣿
+⣿⣷⣶⣾⣿⣄⠀⠩⣨⣀⠤⡀⠀⡈⠇⣈⣿⣟⣿⣿⠮⢁⣤⡄⠱⡘⠀⢶⣧⣿
+⣶⣭⣭⣿⣿⣭⣷⣿⣿⣿⣿⣾⣅⡹⢒⣾⣟⣾⣿⡟⠱⡘⠟⠁⡘⠀⢬⣟⣾⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣿⣿⣿⣟⣾⣿⣿⣿⣿⡆⠡⣈⣀⠔⠀⣸⣟⣾⣿⣿
+⣿⣿⣿⣿⣿⣾⣿⣿⣷⣿⣿⣿⣿⣟⣾⣟⣾⣿⣿⣿⣮⣢⢄⣀⢠⣾⣟⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡼⣯⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⣾⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣮⣝⣻⠿⣿⣿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣾⣿⣿⣷⣿⣿⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣾⣿⣿⣷⣿⣿⣿⣾⣿⣿⣷⣿⣿⣿⣾⣿⣿⣷⣿⣿⣿⣾⣿⣿</pre>
+      </div>
+      <pre id="terminalStats" class="terminal-stats" aria-live="off">PS&gt; Get-Counter -Continuous
+Waiting for the first system sample...</pre>
+    </div>
+
+    <div class="captions panel">
+      <div id="phoneEmpty" class="phone-empty phone-only">PS&gt; _</div>
+      <div id="status" role="status" aria-live="polite"></div>
+      <div id="heard"></div>
+      <div id="reply"></div>
+      <div class="confirm-row">
+        <button class="btn yes" id="yes">Confirm</button>
+        <button class="btn no" id="no">Cancel</button>
+      </div>
+    </div>
+    <section id="phoneStats" class="phone-only" aria-label="Live PC stats"></section>
+  </main>
+
+  <aside id="chamber" class="panel">
+    <div class="ch-num" id="chNum">01</div>
+    <div class="ch-prog"><span id="chFrac">01/19</span><i><b id="chBar"></b></i></div>
+    <div class="ch-icons" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><title>Cube dispenser</title><rect x="7" y="4" width="10" height="10" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="9" r="2" fill="#fff"/><path d="M8 18h8M10 21h4" stroke="#fff" stroke-width="1.6"/></svg>
+      <svg viewBox="0 0 24 24"><title>Button</title><rect x="8" y="12" width="8" height="4" fill="#fff"/><rect x="4" y="16" width="16" height="3" fill="#fff"/></svg>
+      <svg viewBox="0 0 24 24"><title>Portals</title><ellipse cx="7" cy="12" rx="2.5" ry="6.5" fill="none" stroke="#27a2ff" stroke-width="1.8"/><ellipse cx="17" cy="12" rx="2.5" ry="6.5" fill="none" stroke="#ff8a1c" stroke-width="1.8"/></svg>
+      <svg viewBox="0 0 24 24"><title>Water hazard</title><path d="M3 11c3-3 6 3 9 0s6 3 9 0M3 16c3-3 6 3 9 0s6 3 9 0" fill="none" stroke="#fff" stroke-width="1.6"/></svg>
+      <svg viewBox="0 0 24 24"><title>Cake</title><rect x="5" y="12" width="14" height="7" fill="#fff"/><path d="M12 12V8" stroke="#fff" stroke-width="1.6"/><circle cx="12" cy="6.3" r="1.4" fill="#ff8a1c"/></svg>
+    </div>
+    <div class="ch-foot">Aperture Science<br>Enrichment Center</div>
+  </aside>
+
+  <aside id="stats" class="panel" aria-label="PC system status"><div class="sign-title"><span>PC status</span><span id="statsState" class="phone-only" role="status" data-state="connecting">Connecting</span></div></aside>
+
+  <footer>
+    <div class="phone-voicebar phone-only">
+      <button type="button" id="phoneTalk" aria-label="Hold to talk to GLaDOS" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span id="phoneTalkLabel">Hold to talk</span></button>
+      <button type="button" id="phoneStop" class="phone-icon-button" aria-label="Stop speech" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+    </div>
+    <div class="input-row">
+      <input id="typed" type="text" aria-label="Message GLaDOS" enterkeyhint="send" placeholder="Or type a message and press Enter" autocomplete="off">
+      <button type="button" id="phoneSend" class="phone-only phone-icon-button" aria-label="Send message" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button>
+      <button class="ghost" id="photo" type="button" title="Send a photo">Photo</button>
+      <button class="ghost" id="video" type="button" title="Send a video">Video</button>
+      <button class="ghost" id="filesBtn" type="button" title="Get files from this PC">Files</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" hidden>
+    <input type="file" id="videoInput" accept="video/*" hidden>
+    <div id="filesPanel" class="panel" hidden></div>
+    <div class="hint" id="hint">Hold <kbd>Space</kbd> or press and hold GLaDOS to talk &middot; <kbd>Esc</kbd> stops speech</div>
+  </footer>
+
+<script>
+const TOKEN = '{{TOKEN}}';
+const $ = id => document.getElementById(id);
+const statusEl = $('status'), heardEl = $('heard'), replyEl = $('reply'), typed = $('typed');
+const phoneLayout = window.matchMedia('(max-width: 760px), (max-width: 1000px) and (pointer: coarse)');
+const appearanceSwitch = document.querySelector('.view-switch');
+const appearanceSwitchHome = appearanceSwitch.parentElement;
+function syncPhoneLayout() {
+  const phoneTerminal = phoneLayout.matches && document.body.classList.contains('terminal');
+  document.body.classList.toggle('phone-layout', phoneTerminal);
+  document.documentElement.classList.toggle('phone-terminal', phoneTerminal);
+  document.querySelector('meta[name="viewport"]').content = phoneLayout.matches && !phoneTerminal
+    ? 'width=device-width, initial-scale=1'
+    : 'width=device-width, initial-scale=1, viewport-fit=cover';
+  const theme = $('phoneTheme');
+  if (!phoneLayout.matches || phoneTerminal) theme.setAttribute('name', 'theme-color');
+  else theme.removeAttribute('name');
+  typed.placeholder = phoneTerminal ? 'PS> Message GLaDOS' : 'Or type a message and press Enter';
+  const switchParent = phoneTerminal ? $('phoneViewbar') : appearanceSwitchHome;
+  if (appearanceSwitch.parentElement !== switchParent) switchParent.prepend(appearanceSwitch);
+}
+syncPhoneLayout();
+phoneLayout.addEventListener('change', syncPhoneLayout);
+
+let state = 'idle', busy = false, pendingConfirm = false;
+let speechChain = Promise.resolve(), speechBuffer = '';
+let wakeOn = false, wakeRec = null, wakeRunning = false;
+// After "Hey GLaDOS", each spoken reply is followed by a short hands-free listen.
+let inConvo = false, followingUp = false, noSpeech = false;
+
+function setState(s) {
+  state = s;
+  document.body.classList.remove('idle', 'listening', 'thinking', 'speaking', 'confirm');
+  document.body.classList.add(s);
+  if (s === 'idle' && pendingConfirm) document.body.classList.add('confirm');
+  document.body.dataset.pending = pendingConfirm && s !== 'thinking' ? '1' : '';
+  syncWake();
+  updateBadge(s);
+  syncPhoneControls();
+  // idle/listening map straight across; thinking and speaking both use the "talking" rig pose,
+  // since the model has no separate "thinking" animation and speaking/thinking read the same
+  // visually (the audio level distinguishes speaking's stronger motion from thinking's idle hum).
+  if (window.GladosViz) {
+    window.GladosViz.state = (s === 'thinking' || s === 'speaking') ? 'talking' : (s === 'listening' ? 'listening' : 'idle');
+  }
+}
+function setStatus(t) { statusEl.textContent = t || ''; }
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+
+/* Switch presentation without resetting the active conversation or 3D rig. */
+const sceneViewButton = $('sceneView'), terminalViewButton = $('terminalView');
+function setPresentation(mode, persist = true) {
+  const terminal = mode === 'terminal';
+  document.body.classList.toggle('terminal', terminal);
+  if (phoneLayout.matches) {
+    syncPhoneLayout();
+    document.dispatchEvent(new Event('glados:presentation'));
+  }
+  sceneViewButton.setAttribute('aria-pressed', String(!terminal));
+  terminalViewButton.setAttribute('aria-pressed', String(terminal));
+  if (persist) store.set('glados-presentation', terminal ? 'terminal' : 'scene');
+  if (window.GladosViz && window.GladosViz.resize) requestAnimationFrame(window.GladosViz.resize);
+}
+sceneViewButton.addEventListener('click', () => setPresentation('scene'));
+terminalViewButton.addEventListener('click', () => setPresentation('terminal'));
+if (store.get('glados-presentation') === 'terminal' || (!store.get('glados-presentation') && phoneLayout.matches)) setPresentation('terminal', false);
+
+// Taskbar badge: a colored favicon dot plus a title suffix, so the state is visible
+// even while the window is minimized (the orb itself is invisible then).
+const favicon = $('favicon');
+const badgeCanvas = document.createElement('canvas');
+badgeCanvas.width = badgeCanvas.height = 32;
+const badgeCtx = badgeCanvas.getContext('2d');
+function updateBadge(s) {
+  const { color, label } = {
+    idle:      { color: '#8a8f94', label: '' },
+    listening: { color: '#27a2ff', label: 'Listening' },
+    thinking:  { color: '#ff8a1c', label: 'Thinking' },
+    speaking:  { color: '#ff8a1c', label: 'Speaking' },
+  }[s] || { color: '#8a8f94', label: '' };
+  badgeCtx.clearRect(0, 0, 32, 32);
+  badgeCtx.beginPath();
+  badgeCtx.arc(16, 16, 13, 0, Math.PI * 2);
+  badgeCtx.fillStyle = color;
+  badgeCtx.fill();
+  favicon.href = badgeCanvas.toDataURL('image/png');
+  document.title = label ? `GLaDOS — ${label}` : 'GLaDOS';
+}
+updateBadge('idle');
+
+async function post(path, body) {
+  return fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-GLaDOS-Token': TOKEN },
+    body: JSON.stringify(body || {})
+  });
+}
+
+/* ---------------- audio + pulse ---------------- */
+let audioCtx = null, analyser = null, source = null, level = 0;
+let streamSocket = null, streamAudio = null, streamNode = null, streamMedia = null, streamQueue = [], streamPending = [], streamOpening = false, streamOpened = false, streamFinished = false, streamFailed = false;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+const samples = new Float32Array(1024);
+function tick() {
+  let target = 0;
+  const meter = state === 'speaking' ? analyser : (state === 'listening' ? micAnalyser : null);
+  if (meter) {
+    meter.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+    target = Math.min(1, Math.sqrt(sum / samples.length) * 4.2);
+  }
+  // quick attack, gentle release so the bubble "breathes" with the words
+  level += (target - level) * (target > level ? 0.45 : 0.12);
+  document.documentElement.style.setProperty('--level', level.toFixed(3));
+  if (window.GladosViz) window.GladosViz.level = level;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* GLaDOS herself is rendered as a three.js scene in the <script type="module"> block at the
+   end of the body, which reads window.GladosViz.state/level (kept in sync by setState/tick
+   above) to drive the model's rig animation. */
+
+function stopSpeaking() {
+  if (source) { try { source.onended = null; source.stop(); } catch {} source = null; }
+  if (streamSocket) { try { streamSocket.close(); } catch {} streamSocket = null; }
+  if (streamAudio) { try { streamAudio.pause(); streamAudio.src = ''; } catch {} streamAudio = null; }
+  streamNode = null; streamMedia = null; streamQueue = []; streamPending = []; streamOpening = false; streamOpened = false; streamFinished = false;
+  if (state === 'speaking') setState('idle');
+}
+
+function startSpeechStream() {
+  if (streamOpening || streamSocket) return;
+  streamFailed = false;
+  streamOpening = true;
+  try {
+    ensureAudio();
+    if (!window.MediaSource || !MediaSource.isTypeSupported('audio/mpeg')) throw new Error('MediaSource audio is unavailable');
+    const media = new MediaSource();
+    const audio = document.createElement('audio');
+    audio.autoplay = true; audio.src = URL.createObjectURL(media);
+    streamAudio = audio; streamMedia = media;
+    streamNode = audioCtx.createMediaElementSource(audio); streamNode.connect(analyser);
+    media.addEventListener('sourceopen', () => {
+      try {
+        const sb = media.addSourceBuffer('audio/mpeg');
+        const append = () => { if (!sb.updating && streamQueue.length) sb.appendBuffer(streamQueue.shift()); else if (streamFinished && !sb.updating && !streamQueue.length && media.readyState === 'open') media.endOfStream(); };
+        sb.addEventListener('updateend', append);
+        const remoteTailnet = location.hostname.endsWith('.ts.net');
+        const streamUrl = remoteTailnet
+          ? `wss://${location.hostname}:8766/stream`
+          : `ws://127.0.0.1:18766/stream`;
+        streamSocket = new WebSocket(streamUrl);
+        streamSocket.binaryType = 'arraybuffer';
+        streamSocket.onopen = () => { streamOpened = true; streamOpening = false; for (const text of streamPending.splice(0)) streamSocket.send(JSON.stringify({ type: 'text', text })); append(); };
+        streamSocket.onmessage = e => {
+          if (typeof e.data === 'string') { try { if (JSON.parse(e.data).event === 'finish') { streamFinished = true; append(); } } catch {} return; }
+          streamQueue.push(new Uint8Array(e.data)); append();
+          if (state !== 'speaking') setState('speaking');
+        };
+        streamSocket.onclose = () => { streamOpened = false; };
+        audio.onended = () => { if (state === 'speaking') setState('idle'); };
+      } catch (e) {
+        streamFailed = true;
+        streamOpening = false;
+        streamSocket = null;
+      }
+    }, { once: true });
+  } catch (e) {
+    streamFailed = true;
+    streamOpening = false;
+    streamSocket = null;
+    streamAudio = null; streamMedia = null; streamNode = null;
+  }
+}
+function streamSpeechDelta(text) {
+  if (!text) return;
+  if (!streamSocket) startSpeechStream();
+  if (streamSocket?.readyState === 1) streamSocket.send(JSON.stringify({ type: 'text', text }));
+  else streamPending.push(text);
+}
+function finishSpeechStream() { if (streamSocket?.readyState === 1) streamSocket.send(JSON.stringify({ type: 'stop' })); }
+
+async function speak(text) {
+  if (!text) return;
+  try {
+    ensureAudio();
+    const res = await post('/tts', { text });
+    if (!res.ok) { if (res.status !== 204) setStatus('Voice unavailable'); return; }
+    const buf = await audioCtx.decodeAudioData(await res.arrayBuffer());
+    source = audioCtx.createBufferSource();
+    source.buffer = buf;
+    source.connect(analyser);
+    source.onended = () => {
+      source = null;
+      const follow = inConvo && wakeOn && !busy && !listening && !micStarting;
+      if (follow) handsFree = followingUp = true;   // set first so syncWake leaves the mic alone
+      setState('idle');
+      if (follow) { stopWake(); startListening(); }
+    };
+    setState('speaking');
+    source.start();
+    await new Promise(resolve => { const done = source.onended; source.onended = () => { if (done) done(); resolve(); }; });
+  } catch (e) {
+    setStatus('Voice unavailable');
+  }
+}
+
+function queueSpeechDelta(text) {
+  speechBuffer += text;
+  let match;
+  while ((match = speechBuffer.match(/^([\s\S]*?[.!?](?:["'”»)]*)?)(?:\s+|$)/))) {
+    const sentence = match[1].trim();
+    speechBuffer = speechBuffer.slice(match[0].length);
+    if (sentence) speechChain = speechChain.then(() => speak(sentence));
+  }
+}
+
+/* ---------------- talking to GLaDOS ---------------- */
+async function send(text, confirm = false) {
+  if (busy) return;
+  busy = true;
+  stopSpeaking();
+  startSpeechStream();
+  speechChain = Promise.resolve(); speechBuffer = '';
+  pendingConfirm = false;
+  replyEl.textContent = '';
+  if (!confirm) { heardEl.classList.remove('live'); heardEl.textContent = `“${text}”`; }
+  setState('thinking');
+  setStatus(confirm ? 'Carrying out the plan' : 'Thinking');
+
+  let reply = null;
+  try {
+    const res = await post('/chat', confirm ? { confirm: true } : { text });
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffered += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffered.indexOf('\n')) >= 0) {
+        const line = buffered.slice(0, nl).trim();
+        buffered = buffered.slice(nl + 1);
+        if (!line) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === 'status') setStatus(ev.text);
+        else if (ev.type === 'delta') { replyEl.textContent += ev.text; streamSpeechDelta(ev.text); }
+        else if (ev.type === 'reply') { reply = ev.text; pendingConfirm = !!ev.needsConfirm; }
+        else if (ev.type === 'error') { reply = null; replyEl.textContent = ev.text; setStatus('Something went wrong'); }
+      }
+    }
+    if (reply === null && replyEl.textContent) reply = replyEl.textContent;
+    if (reply === null && !replyEl.textContent) {
+      replyEl.textContent = 'OpenClaw closed the response stream without a reply.';
+      setStatus('Response unavailable');
+    }
+  } catch (e) {
+    replyEl.textContent = 'Could not reach GLaDOS. Is the GLaDOS window still running?';
+    setStatus('Offline');
+  }
+
+  busy = false;
+  if (reply !== null) {
+    replyEl.textContent = reply;
+    setStatus(pendingConfirm ? 'Awaiting your confirmation' : '');
+  }
+  setState('idle');
+  if (reply) {
+    finishSpeechStream();
+    if (streamFailed || !streamSocket) speak(reply);
+  }
+}
+
+const YES = /^(yes|yeah|yep|yup|sure|ok|okay|alright|all right|sounds good|confirm|confirmed|do it|go ahead|proceed|affirmative|please do)\b/i;
+// "No need to ask ..." starts with "no" but is a pre-approved request, not a cancel.
+const NO  = /^(?!\W*no need to ask)(no|nope|nah|cancel|stop|don'?t|never ?mind|abort|negative)\b/i;
+
+async function cancel(quiet) {
+  pendingConfirm = false;
+  setState('idle');
+  setStatus('');
+  await post('/cancel');
+  if (!quiet) { replyEl.textContent = 'Cancelled. Nothing was changed.'; speak('Cancelled. Nothing was changed.'); }
+}
+
+async function handleUtterance(text) {
+  text = text.trim().replace(/[.!?,]+$/, '');
+  if (!text) { setStatus("Didn't catch that"); setState('idle'); return; }
+  if (pendingConfirm) {
+    if (YES.test(text)) { heardEl.textContent = `“${text}”`; return send('', true); }
+    if (NO.test(text))  { heardEl.textContent = `“${text}”`; return cancel(); }
+    // Anything else: drop the proposal and treat it as a new request.
+    pendingConfirm = false;
+    await post('/cancel');
+  }
+  send(text);
+}
+
+/* ---------------- photo upload ----------------
+   The button opens the phone's camera (or file picker); the shot uploads to /image,
+   which saves it to disk and hands back a path GLaDOS can read like any other file. */
+const photoBtn = $('photo'), photoInput = $('photoInput');
+photoBtn.addEventListener('click', () => { if (!busy) photoInput.click(); });
+photoInput.addEventListener('change', async () => {
+  const file = photoInput.files[0];
+  photoInput.value = '';
+  if (!file || busy) return;
+  setStatus('Uploading photo');
+  try {
+    const res = await fetch('/image', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-GLaDOS-Token': TOKEN },
+      body: file
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'upload failed');
+    const caption = typed.value.trim(); typed.value = '';
+    const text = caption
+      ? `${caption} (photo attached at ${data.path})`
+      : `Take a look at the photo at ${data.path} and tell me what's in it.`;
+    handleUtterance(text);
+  } catch (e) {
+    setStatus('Photo upload failed');
+  }
+});
+
+/* ---------------- video upload ----------------
+   Same idea as the photo button, but GLaDOS can't watch video, so the message
+   just tells her it's there instead of asking her to look at it. */
+const videoBtn = $('video'), videoInput = $('videoInput');
+videoBtn.addEventListener('click', () => { if (!busy) videoInput.click(); });
+videoInput.addEventListener('change', async () => {
+  const file = videoInput.files[0];
+  videoInput.value = '';
+  if (!file || busy) return;
+  setStatus('Uploading video');
+  try {
+    const res = await fetch('/video', {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-GLaDOS-Token': TOKEN },
+      body: file
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'upload failed');
+    const caption = typed.value.trim(); typed.value = '';
+    const text = caption
+      ? `${caption} (video attached at ${data.path})`
+      : `A video was uploaded to ${data.path}.`;
+    handleUtterance(text);
+  } catch (e) {
+    setStatus('Video upload failed');
+  }
+});
+
+/* ---------------- files from PC ----------------
+   Anything dropped in the outbox/ folder on the PC shows up here for the phone to
+   download, over the same Tailscale connection the rest of the page uses. */
+const filesBtn = $('filesBtn'), filesPanel = $('filesPanel');
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+async function loadFiles() {
+  filesPanel.textContent = 'Loading…';
+  try {
+    const res = await post('/files/list');
+    const data = await res.json();
+    filesPanel.innerHTML = '';
+    if (!data.files || !data.files.length) {
+      const empty = document.createElement('div');
+      empty.className = 'files-empty';
+      empty.textContent = 'Nothing in the outbox folder.';
+      filesPanel.appendChild(empty);
+      return;
+    }
+    for (const f of data.files) {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.innerHTML = `<span>${f.name}</span><span class="files-size">${fmtSize(f.size)}</span>`;
+      a.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const res = await post('/files/get', { name: f.name });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = f.name;
+        document.body.appendChild(link); link.click(); link.remove();
+        URL.revokeObjectURL(url);
+      });
+      filesPanel.appendChild(a);
+    }
+  } catch (e) {
+    filesPanel.textContent = 'Could not load files.';
+  }
+}
+filesBtn.addEventListener('click', () => {
+  filesPanel.hidden = !filesPanel.hidden;
+  if (!filesPanel.hidden) loadFiles();
+});
+
+/* ---------------- push to talk ----------------
+   Records the mic while Space (or the bubble) is held, then sends the clip to the
+   server, which transcribes it with ElevenLabs speech-to-text. */
+let micStream = null, micAnalyser = null, recorder = null, chunks = [];
+let listening = false, holdStart = 0, micStarting = false, micRequestStart = 0;
+
+const micSelect = $('mic');
+
+async function listMics() {
+  let devices = [];
+  try { devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput'); } catch {}
+  const saved = store.get('ultron-mic') || '';
+  micSelect.innerHTML = '';
+  const def = new Option('Default microphone', '');
+  micSelect.add(def);
+  devices.filter(d => d.deviceId !== 'default' && d.deviceId !== 'communications').forEach((d, i) => {
+    micSelect.add(new Option(d.label || `Microphone ${i + 1}`, d.deviceId));
+  });
+  micSelect.value = [...micSelect.options].some(o => o.value === saved) ? saved : '';
+}
+
+function releaseMic() {
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  micStream = null; micAnalyser = null;
+}
+
+micSelect.addEventListener('change', () => {
+  store.set('ultron-mic', micSelect.value);
+  releaseMic();
+  setStatus('Mic changed. Hold Space to test it');
+});
+navigator.mediaDevices && navigator.mediaDevices.addEventListener &&
+  navigator.mediaDevices.addEventListener('devicechange', listMics);
+listMics();
+
+async function getMic() {
+  if (micStream && micStream.active) return micStream;
+  const deviceId = micSelect.value;
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      echoCancellation: true, noiseSuppression: true, autoGainControl: true
+    }
+  });
+  ensureAudio();
+  micAnalyser = audioCtx.createAnalyser();
+  micAnalyser.fftSize = 1024;
+  audioCtx.createMediaStreamSource(micStream).connect(micAnalyser);   // meter only, not played back
+  listMics();   // names become visible once access is granted
+  return micStream;
+}
+
+function pickMime() {
+  for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
+async function startListening() {
+  if (listening || busy || micStarting) return;
+  ensureAudio();
+  stopSpeaking();
+  micStarting = true;
+  micRequestStart = performance.now();
+  try {
+    await getMic();
+  } catch (e) {
+    micStarting = false;
+    handsFree = false;
+    setStatus(e && e.name === 'NotAllowedError' ? 'Microphone access was blocked' : 'No microphone found');
+    syncWake();
+    return;
+  }
+  micStarting = false;
+  console.info(`[GLaDOS timing] microphone ready in ${Math.round(performance.now() - micRequestStart)}ms`);
+  if (!keyHeld && !pointerHeld && !handsFree) return;   // released before the mic was ready
+
+  chunks = [];
+  const mime = pickMime();
+  recorder = new MediaRecorder(micStream, mime ? { mimeType: mime } : undefined);
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = onRecordingDone;
+  // A short timeslice makes iOS/Safari commit microphone data reliably before stop().
+  recorder.start(250);
+  holdStart = performance.now();
+  listening = true;
+  heardEl.classList.add('live');
+  heardEl.textContent = '';
+  setStatus('Listening');
+  setState('listening');
+  if (handsFree) watchSilence();
+}
+
+// Hands-free recordings end on their own once you stop talking.
+function watchSilence() {
+  const buf = new Float32Array(1024), start = performance.now();
+  let heard = false, lastLoud = start;
+  const timer = setInterval(() => {
+    if (!listening || !handsFree || !micAnalyser) { clearInterval(timer); return; }
+    micAnalyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const now = performance.now();
+    if (Math.sqrt(sum / buf.length) > 0.02) { heard = true; lastLoud = now; }
+    if ((heard && now - lastLoud > 1300) || (!heard && now - start > 6000) || now - start > 30000) {
+      clearInterval(timer);
+      noSpeech = !heard;
+      stopListening();
+    }
+  }, 60);
+}
+
+function stopListening() {
+  if (!listening || !recorder) return;
+  listening = false;
+  heardEl.classList.remove('live');
+  try { recorder.stop(); } catch {}
+}
+
+async function onRecordingDone() {
+  const wasHandsFree = handsFree, wasFollowUp = followingUp, silent = noSpeech;
+  handsFree = followingUp = noSpeech = false;
+  const held = performance.now() - holdStart;
+  const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+  // No answer to a follow-up: quietly go back to waiting for "Hey GLaDOS".
+  if (wasFollowUp && silent) { inConvo = false; setStatus(''); setState('idle'); return; }
+  if (held < 350 || blob.size < 1000) { setStatus(wasHandsFree ? "Didn't catch that" : 'Hold to talk'); setState('idle'); return; }
+
+  setStatus('Transcribing');
+  setState('thinking');
+  try {
+    const sttStarted = performance.now();
+    const res = await fetch('/stt', {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type, 'X-GLaDOS-Token': TOKEN },
+      body: blob
+    });
+    const sttResponseAt = performance.now();
+    const data = await res.json();
+    console.info(`[GLaDOS timing] STT response in ${Math.round(performance.now() - sttStarted)}ms (headers ${Math.round(sttResponseAt - sttStarted)}ms, audio ${blob.size} bytes, recorded ${Math.round(held)}ms)`);
+    if (!res.ok) throw new Error(data.error || 'failed');
+    const text = (data.text || '').trim();
+    if (!text) { setStatus("Didn't catch that"); setState('idle'); return; }
+    setStatus('');
+    handleUtterance(text);
+  } catch (e) {
+    setStatus('Transcription failed');
+    setState('idle');
+  }
+}
+
+let keyHeld = false, pointerHeld = false, handsFree = false;
+
+// While a plan awaits confirmation, Enter confirms and Esc cancels, even mid-speech.
+function confirmPlan(said) {
+  if (!pendingConfirm || busy) return;
+  ensureAudio();
+  if (said) heardEl.textContent = `“${said}”`;
+  send('', true);
+}
+function cancelPlan(said) {
+  if (!pendingConfirm || busy) return;
+  stopSpeaking();
+  if (said) heardEl.textContent = `“${said}”`;
+  cancel();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target === typed) return;
+  if (pendingConfirm && !busy && e.key === 'Enter' && !e.target.closest('button, select')) { e.preventDefault(); confirmPlan(); return; }
+  if (pendingConfirm && !busy && e.code === 'Escape') { cancelPlan(); return; }
+  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) { keyHeld = true; startListening(); } }
+  else if (e.code === 'Escape') { inConvo = false; stopSpeaking(); }
+});
+document.addEventListener('keyup', e => {
+  if (e.target === typed) return;
+  if (e.code === 'Space') { e.preventDefault(); keyHeld = false; stopListening(); }
+});
+window.addEventListener('blur', () => { keyHeld = false; pointerHeld = false; if (!handsFree) stopListening(); });
+
+const orb = $('orb');
+orb.addEventListener('pointerdown', e => { e.preventDefault(); orb.setPointerCapture(e.pointerId); pointerHeld = true; startListening(); });
+const release = () => { pointerHeld = false; stopListening(); };
+orb.addEventListener('pointerup', release);
+orb.addEventListener('pointercancel', release);
+
+function submitTyped() {
+  if (busy) return;
+  const text = typed.value.trim();
+  if (text) {
+    ensureAudio();
+    typed.value = '';
+    syncPhoneControls();
+    handleUtterance(text);
+  } else if (pendingConfirm) confirmPlan();
+}
+typed.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitTyped(); }
+  else if (e.key === 'Escape' && pendingConfirm) { typed.blur(); cancelPlan(); }
+  else if (e.key === 'Escape') { typed.blur(); stopSpeaking(); }
+});
+$('phoneSend').addEventListener('click', submitTyped);
+typed.addEventListener('input', syncPhoneControls);
+$('phoneSettings').addEventListener('click', () => {
+  const open = document.body.classList.toggle('phone-settings-open');
+  $('phoneSettings').setAttribute('aria-expanded', String(open));
+});
+$('phoneStop').addEventListener('click', () => { inConvo = false; stopSpeaking(); });
+const phoneTalk = $('phoneTalk');
+phoneTalk.addEventListener('contextmenu', e => e.preventDefault());
+phoneTalk.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || busy) return;
+  e.preventDefault();
+  phoneTalk.setPointerCapture(e.pointerId);
+  pointerHeld = true;
+  startListening();
+});
+phoneTalk.addEventListener('pointerup', release);
+phoneTalk.addEventListener('pointercancel', release);
+phoneTalk.addEventListener('lostpointercapture', () => { if (pointerHeld) release(); });
+phoneTalk.addEventListener('keydown', e => {
+  if (e.code !== 'Space' && e.key !== 'Enter') return;
+  e.preventDefault(); e.stopPropagation();
+  if (!e.repeat && !busy) { pointerHeld = true; startListening(); }
+});
+phoneTalk.addEventListener('keyup', e => {
+  if (e.code !== 'Space' && e.key !== 'Enter') return;
+  e.preventDefault(); e.stopPropagation(); release();
+});
+function syncPhoneControls() {
+  $('phoneTalk').disabled = busy;
+  $('phoneTalk').setAttribute('aria-pressed', String(state === 'listening'));
+  $('phoneTalkLabel').textContent = state === 'listening' ? 'Release to send' : busy ? 'Working…' : 'Hold to talk';
+  $('phoneStop').hidden = state !== 'speaking';
+  $('phoneSend').disabled = busy || !typed.value.trim();
+  $('phoneEmpty').hidden = !!(heardEl.textContent || replyEl.textContent || state !== 'idle');
+}
+new MutationObserver(syncPhoneControls).observe(document.querySelector('.captions'), { childList: true, subtree: true, characterData: true });
+syncPhoneControls();
+
+$('yes').addEventListener('click', () => { ensureAudio(); if (pendingConfirm && !busy) send('', true); });
+$('no').addEventListener('click', () => { if (pendingConfirm) cancel(); });
+// The chamber sign counts conversations: each new one moves on to the next test chamber.
+const CH_MAX = 19;
+let chamber = Math.min(CH_MAX, Math.max(1, +store.get('glados-chamber') || 1));
+function showChamber() {
+  const n = String(chamber).padStart(2, '0');
+  $('chNum').textContent = n;
+  $('chFrac').textContent = `${n}/${CH_MAX}`;
+  $('chBar').style.width = `${chamber / CH_MAX * 100}%`;
+}
+showChamber();
+
+$('reset').addEventListener('click', async () => {
+  stopSpeaking(); pendingConfirm = false;
+  chamber = chamber % CH_MAX + 1; store.set('glados-chamber', chamber); showChamber();
+  await post('/reset');
+  heardEl.textContent = ''; replyEl.textContent = ''; setStatus('New conversation'); setState('idle');
+  setTimeout(() => { if (statusEl.textContent === 'New conversation') setStatus(''); }, 1800);
+});
+
+/* ---------------- "Hey GLaDOS" ----------------
+   While the switch is on, Edge's built-in speech recognition listens for the wake phrase.
+   On a match it steps aside and the normal recorder takes over until you go quiet. */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const wakeBox = $('wake'), HINT = $('hint').innerHTML;
+const WAKE = /\b(hey|hi|ok|okay)\W+(glados|gladdos|gladys|gladis|gladas|gladeos|glad\W?os|glaidos)\b/i;
+let wakeRetry = 250;
+
+function stopWake() {
+  if (wakeRec && wakeRunning) { try { wakeRec.abort(); } catch {} }
+}
+
+function syncWake() {
+  if (!wakeRec) return;
+  const want = wakeOn && !handsFree && !listening && !busy && (state === 'idle' || state === 'speaking');
+  if (want && !wakeRunning) { try { wakeRec.start(); wakeRunning = true; } catch {} }
+  else if (!want && wakeRunning) stopWake();
+}
+
+function onWake() {
+  if (busy || listening || micStarting) return;
+  handsFree = true;
+  inConvo = true;
+  stopWake();   // free the mic for the recorder
+  startListening();
+}
+
+function updateHint() {
+  $('hint').innerHTML = wakeOn
+    ? 'Say <b>“Hey GLaDOS”</b> or hold <kbd>Space</kbd> to talk &middot; <kbd>Esc</kbd> stops speech'
+    : HINT;
+}
+
+if (!SR) {
+  wakeBox.disabled = true;
+  wakeBox.checked = false;
+  wakeBox.parentElement.title = 'Voice activation is not supported in this browser';
+} else {
+  wakeRec = new SR();
+  wakeRec.continuous = true;
+  wakeRec.interimResults = true;
+  wakeRec.lang = 'en-US';
+  wakeRec.onstart = () => { wakeRunning = true; };
+  wakeRec.onend = () => { wakeRunning = false; setTimeout(syncWake, wakeRetry); };
+  wakeRec.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      wakeOn = wakeBox.checked = false;
+      setStatus('Voice activation was blocked');
+      updateHint();
+    }
+    wakeRetry = e.error === 'no-speech' || e.error === 'aborted' ? 250 : 2000;
+  };
+  // With a plan pending, "Hey GLaDOS, yes" / "Hey GLaDOS, cancel" answers it straight away,
+  // even while she is still talking. The wake phrase is required so her own voice saying
+  // "proceed" can never approve the plan.
+  wakeRec.onresult = e => {
+    wakeRetry = 250;
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const said = e.results[i][0].transcript, m = said.match(WAKE);
+      if (!m) continue;
+      if (pendingConfirm && !busy) {
+        const rest = said.slice(m.index + m[0].length).replace(/^\W+/, '').replace(/[.!?,]+$/, '');
+        if (YES.test(rest)) { stopWake(); confirmPlan(rest); return; }
+        if (NO.test(rest)) { stopWake(); cancelPlan(rest); return; }
+        if (!e.results[i].isFinal) return;   // wait: the answer may still be coming
+      }
+      onWake(); return;
+    }
+  };
+}
+
+/* ---------------- live PC stats ----------------
+   The server samples CPU, memory, GPU, disk and network once a second; the panel stays
+   hidden until the first reading arrives. */
+const STATS = [
+  { key: 'cpu', label: 'CPU' }, { key: 'mem', label: 'Memory' }, { key: 'gpu', label: 'GPU' },
+  { key: 'disk', label: 'Disk' }, { key: 'net', label: 'Network' }
+];
+const statsEl = $('stats'), HIST = 60;
+STATS.forEach(s => {
+  const row = document.createElement('div');
+  row.className = 'stat';
+  row.dataset.key = s.key;
+  row.innerHTML = '<div class="stat-head"><span></span><b>–</b></div><canvas width="380" height="60"></canvas><small class="stat-detail phone-only"></small>';
+  row.querySelector('span').textContent = s.label;
+  statsEl.appendChild(row);
+  s.val = row.querySelector('b'); s.cv = row.querySelector('canvas'); s.hist = []; s.detail = row.querySelector('.stat-detail');
+});
+
+const rate = b => b < 1048576 ? (Math.round(b / 1024) + ' KB/s') : ((b / 1048576).toFixed(1) + ' MB/s');
+const terminalStatsEl = $('terminalStats');
+function renderTerminalStats(d) {
+  const pct = n => Math.max(0, Math.min(100, Number(n) || 0));
+  const bar = n => { const used = Math.round(pct(n) / 100 * 16); return '[' + '#'.repeat(used) + '.'.repeat(16 - used) + ']'; };
+  const stamp = new Date().toLocaleTimeString();
+  const freeMem = Math.max(0, d.memTotal - d.memUsed);
+  if (phoneLayout.matches) {
+    const meter = n => { const filled = Math.round(pct(n) / 100 * 8); return '[' + '#'.repeat(filled) + '.'.repeat(8 - filled) + ']'; };
+    terminalStatsEl.textContent = [
+      'PS> Get-Counter -Continuous',
+      'CPU   ' + Number(d.cpu).toFixed(1).padStart(5) + '%  ' + meter(d.cpu),
+      'MEM   ' + Number(d.mem).toFixed(1).padStart(5) + '%  ' + meter(d.mem),
+      '      ' + d.memUsed.toFixed(1) + ' / ' + Number(d.memTotal).toFixed(1) + ' GB',
+      'GPU   ' + Number(d.gpu).toFixed(1).padStart(5) + '%  ' + meter(d.gpu),
+      'DISK  ' + Number(d.disk).toFixed(1).padStart(5) + '%  ' + meter(d.disk),
+      'NET   ↓ ' + rate(d.rx) + '  ↑ ' + rate(d.tx)
+    ].join('\n');
+    return;
+  }
+  terminalStatsEl.textContent = [
+    'PS> Get-Counter -Continuous',
+    '[' + stamp + '] SAMPLE INTERVAL: 1.0 s',
+    'CPU    ' + Number(d.cpu).toFixed(1).padStart(5) + '% ' + bar(d.cpu),
+    'MEM    ' + Number(d.mem).toFixed(1).padStart(5) + '% ' + bar(d.mem),
+    '       ' + d.memUsed.toFixed(1) + ' / ' + Number(d.memTotal).toFixed(1) + ' GB USED   ' + freeMem.toFixed(1) + ' GB FREE',
+    'GPU    ' + Number(d.gpu).toFixed(1).padStart(5) + '% ' + bar(d.gpu),
+    'DISK   ' + Number(d.disk).toFixed(1).padStart(5) + '% ACTIVE ' + bar(d.disk),
+    'NET RX ' + rate(d.rx),
+    'NET TX ' + rate(d.tx),
+    'COUNTERS: CPU / MEMORY / GPU / DISK / NIC'
+  ].join('\n');
+}
+function drawSpark(s, max) {
+  const g = s.cv.getContext('2d'), w = s.cv.width, h = s.cv.height, n = s.hist.length;
+  g.clearRect(0, 0, w, h);
+  if (n < 2) return;
+  const x = i => w - (n - 1 - i) * (w / (HIST - 1)), y = v => h - 3 - Math.min(1, v / max) * (h - 6);
+  g.beginPath();
+  s.hist.forEach((v, i) => i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v)));
+  const rgb = phoneLayout.matches ? '242, 186, 101' : '39, 162, 255';
+  g.strokeStyle = 'rgba(' + rgb + ', .95)'; g.lineWidth = 2.5; g.stroke();
+  g.lineTo(x(n - 1), h); g.lineTo(x(0), h); g.closePath();
+  const fill = g.createLinearGradient(0, 0, 0, h);
+  fill.addColorStop(0, 'rgba(' + rgb + ', .28)'); fill.addColorStop(1, 'rgba(' + rgb + ', 0)');
+  g.fillStyle = fill; g.fill();
+}
+
+let lastStatsSample = null, statsUpdatedAt = 0;
+function showStats(d) {
+  lastStatsSample = d;
+  statsUpdatedAt = Date.now();
+  renderTerminalStats(d);
+  $('statsState').textContent = 'Live';
+  $('statsState').dataset.state = 'live';
+  const vals = { cpu: d.cpu, mem: d.mem, gpu: d.gpu, disk: d.disk, net: d.rx + d.tx };
+  for (const s of STATS) {
+    s.hist.push(vals[s.key]);
+    if (s.hist.length > HIST) s.hist.shift();
+    drawSpark(s, s.key === 'net' ? Math.max(131072, ...s.hist) : 100);
+  }
+  STATS[0].val.textContent = `${Math.round(d.cpu)}%`;
+  renderMemoryStat(d);
+  STATS[0].detail.textContent = "Processor";
+  STATS[2].detail.textContent = "Graphics";
+  STATS[2].val.textContent = `${Math.round(d.gpu)}%`;
+  STATS[3].val.textContent = `${Math.round(d.disk)}%`;
+  STATS[4].val.textContent = `↓ ${rate(d.rx)}  ↑ ${rate(d.tx)}`;
+  statsEl.classList.add('on');
+}
+
+
+function renderMemoryStat(d) {
+  const memory = d.memUsed.toFixed(1) + ' / ' + Math.round(d.memTotal) + ' GB';
+  STATS[1].val.textContent = Math.round(d.mem) + '%' + (phoneLayout.matches ? '' : ' · ' + memory);
+  STATS[1].detail.textContent = memory;
+}
+phoneLayout.addEventListener('change', () => { if (lastStatsSample) renderMemoryStat(lastStatsSample); });
+async function pollStats() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch('/stats/', { headers: { 'X-GLaDOS-Token': TOKEN }, cache: 'no-store', signal: controller.signal });
+    if (!res.ok) throw new Error('Stats unavailable');
+    showStats(await res.json());
+  } catch {
+    $('statsState').textContent = statsUpdatedAt ? 'Reconnecting' : 'PC unavailable';
+    $('statsState').dataset.state = 'stale';
+  } finally {
+    clearTimeout(timeout);
+  }
+  setTimeout(pollStats, 1000);
+}
+const terminalStatsHome = terminalStatsEl.parentElement;
+const statsStateHome = $('statsState').parentElement;
+function syncPhoneStats() {
+  const phoneTerminal = phoneLayout.matches && document.body.classList.contains('terminal');
+  const target = phoneTerminal ? $('phoneStats') : terminalStatsHome;
+  if (terminalStatsEl.parentElement !== target) target.appendChild(terminalStatsEl);
+  const statusTarget = phoneTerminal ? $('phoneStats') : statsStateHome;
+  if ($('statsState').parentElement !== statusTarget) statusTarget.prepend($('statsState'));
+  if (lastStatsSample) renderTerminalStats(lastStatsSample);
+}
+syncPhoneStats();
+phoneLayout.addEventListener('change', syncPhoneStats);
+document.addEventListener('glados:presentation', syncPhoneStats);
+pollStats();
+setInterval(() => {
+  if (statsUpdatedAt && Date.now() - statsUpdatedAt > 10000) {
+    $('statsState').textContent = 'Reconnecting';
+    $('statsState').dataset.state = 'stale';
+  }
+}, 5000);
+
+wakeBox.addEventListener('change', () => {
+  wakeOn = wakeBox.checked;
+  wakeBox.blur();   // keep Space for push to talk
+  ensureAudio();
+  wakeRetry = 250;
+  setStatus(wakeOn ? 'Say “Hey GLaDOS”' : '');
+  updateHint();
+  syncWake();
+});
+// "Hey GLaDOS" starts switched on each time the window opens.
+if (wakeRec && wakeBox.checked) {
+  wakeOn = true;
+  updateHint();
+  syncWake();
+}
+
+/* ---------------- captions ----------------
+   Shows or hides the text of what you said and the reply; remembered between restarts. */
+const captionsBox = $('captions');
+function applyCaptions() { document.documentElement.classList.toggle('no-captions', !captionsBox.checked); }
+captionsBox.checked = store.get('ultron-captions') !== 'off';
+applyCaptions();
+captionsBox.addEventListener('change', () => {
+  captionsBox.blur();   // keep Space for push to talk
+  store.set('ultron-captions', captionsBox.checked ? 'on' : 'off');
+  applyCaptions();
+});
+</script>
+
+<script type="module">
+/* ---------------- GLaDOS, in three.js ----------------
+   Loads the rigged GLTF model and animates it with the same bone-based idle/listening/talking
+   rig as viewer.html's test scene, but rendered small inside the existing .bubble/orb instead
+   of viewer.html's full debug chamber walkthrough. window.GladosViz is the bridge from the
+   classic script above: it holds the current state ('idle' | 'listening' | 'talking') and the
+   0..1 audio level, both kept live by setState() and tick(). */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+window.GladosViz = window.GladosViz || { state: 'idle', level: 0 };
+
+const canvas = document.getElementById('gladosCanvas');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x071018);
+scene.fog = new THREE.Fog(0x071018, 17, 38);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+
+scene.add(new THREE.HemisphereLight(0xb8ddf0, 0x101820, 1.15));
+scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+const key = new THREE.DirectionalLight(0xffffff, 1.2);
+key.position.set(2, 8, 5);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, 0.72);
+fill.position.set(-4, 4, -5);
+scene.add(fill);
+
+function fitRenderer() {
+  const w = canvas.clientWidth || 300, h = canvas.clientHeight || 300;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.GladosViz.resize = fitRenderer;
+fitRenderer();
+window.addEventListener('resize', fitRenderer);
+
+const clock = new THREE.Clock();
+
+// --- procedural animation state (ported from viewer.html) ---
+let currentState = 'idle';
+let prevState = 'idle';
+let transitionStart = 0;
+let transitionPending = false;
+const TRANSITION_DURATION = 0.6;
+const rig = {};
+const cableBones = [];
+const pistonBones = [];
+
+const STATES = {
+  idle:      { bodyAmp: 0.032, bodyFreq: 0.28, headAmp: 0.028, headFreq: 0.38, eyeAmp: 0.02, eyeFreq: 0.15, cableAmp: 0.020, cableFreq: 0.4,  pistonAmp: 0.018, pistonFreq: 0.3 },
+  listening: { bodyAmp: 0.035, bodyFreq: 0.35, headAmp: 0.030, headFreq: 0.50, eyeAmp: 0.06, eyeFreq: 0.9,  cableAmp: 0.022, cableFreq: 0.6,  pistonAmp: 0.020, pistonFreq: 0.5, headTilt: 0.06 },
+  talking:   { bodyAmp: 0.085, bodyFreq: 1.4,  headAmp: 0.090, headFreq: 2.2,  eyeAmp: 0.09, eyeFreq: 3.2,  cableAmp: 0.065, cableFreq: 2.0,  pistonAmp: 0.055, pistonFreq: 1.8 },
+};
+
+const idleLook = { yaw: 0, pitch: 0, startYaw: 0, startPitch: 0, targetYaw: 0, targetPitch: 0, moveStart: 0, moveDuration: 3, nextChange: 0 };
+const idleTwitch = { active: false, timeLeft: 0, duration: 0.35, ex: 0, ey: 0, ez: 0, nextTrigger: 0 };
+
+function captureBone(model, name) {
+  const obj = model.getObjectByName(name);
+  if (obj) rig[name] = { obj, restQuat: obj.quaternion.clone() };
+}
+
+function setupRig(model) {
+  ['Root0_JNT', 'Body0_JNT', 'Body1_JNT', 'Neck0_JNT', 'Head0_JNT', 'mainEye_JNT', 'upperEye_JNT', 'lowerEye_JNT'].forEach(n => captureBone(model, n));
+  model.traverse((obj) => {
+    const cableMatch = obj.name.match(/^(Left|Right|Main)Cable(\d+)_JNT$/);
+    if (cableMatch) cableBones.push({ obj, restQuat: obj.quaternion.clone(), side: cableMatch[1], index: parseInt(cableMatch[2], 10) });
+    const pistonMatch = obj.name.match(/^(RightNeckPiston|LeftNeckPiston|NeckPistonTop|NeckPistonBtmA|NeckPistonBtmB)(\d+)_JNT$/);
+    if (pistonMatch) pistonBones.push({ obj, restQuat: obj.quaternion.clone(), side: pistonMatch[1], index: parseInt(pistonMatch[2], 10) });
+  });
+}
+
+function applyOffset(entry, ex, ey, ez) {
+  if (!entry) return;
+  const offset = new THREE.Quaternion().setFromEuler(new THREE.Euler(ex, ey, ez));
+  entry.obj.quaternion.copy(entry.restQuat).multiply(offset);
+}
+
+function blendStates(a, b, k) {
+  const out = { ...b };
+  for (const key of ['bodyAmp', 'headAmp', 'eyeAmp', 'cableAmp', 'pistonAmp', 'headTilt']) {
+    const av = a[key] || 0, bv = b[key] || 0;
+    out[key] = av + (bv - av) * k;
+  }
+  return out;
+}
+
+function updateIdleLook(t, dt) {
+  if (t > idleLook.nextChange) {
+    idleLook.startYaw = idleLook.yaw; idleLook.startPitch = idleLook.pitch;
+    idleLook.targetYaw = (Math.random() * 2 - 1) * 0.32;
+    idleLook.targetPitch = (Math.random() * 2 - 1) * 0.08;
+    idleLook.moveStart = t;
+    idleLook.moveDuration = 3.0 + Math.random() * 2.0;
+    const hold = 2.5 + Math.random() * 3.5;
+    idleLook.nextChange = t + idleLook.moveDuration + hold;
+  }
+  const progress = Math.min(1, (t - idleLook.moveStart) / idleLook.moveDuration);
+  const eased = progress * progress * (3 - 2 * progress);
+  idleLook.yaw = idleLook.startYaw + (idleLook.targetYaw - idleLook.startYaw) * eased;
+  idleLook.pitch = idleLook.startPitch + (idleLook.targetPitch - idleLook.startPitch) * eased;
+
+  if (!idleTwitch.active && t > idleTwitch.nextTrigger) {
+    idleTwitch.active = true;
+    idleTwitch.timeLeft = idleTwitch.duration;
+    idleTwitch.ex = (Math.random() * 2 - 1) * 0.05;
+    idleTwitch.ey = (Math.random() * 2 - 1) * 0.08;
+    idleTwitch.ez = (Math.random() * 2 - 1) * 0.03;
+    idleTwitch.nextTrigger = t + idleTwitch.duration + 3 + Math.random() * 6;
+  }
+  if (idleTwitch.active) {
+    idleTwitch.timeLeft -= dt;
+    if (idleTwitch.timeLeft <= 0) idleTwitch.active = false;
+  }
+}
+
+function updateRig(t, dt) {
+  if (transitionPending) { transitionStart = t; transitionPending = false; }
+  const transitionProgress = Math.min(1, (t - transitionStart) / TRANSITION_DURATION);
+  const transitionEased = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
+  const s = blendStates(STATES[prevState], STATES[currentState], transitionEased);
+
+  // The voice meter (0..1) scales how strongly she moves while listening or talking, so the
+  // motion tracks the mic/TTS level instead of running at a constant amplitude.
+  const level = window.GladosViz.level || 0;
+  if (currentState === 'talking' || currentState === 'listening') {
+    const boost = 0.55 + level * 0.9;
+    for (const key of ['bodyAmp', 'headAmp', 'cableAmp', 'pistonAmp']) s[key] *= boost;
+  }
+
+  const idling = currentState === 'idle';
+  if (idling) updateIdleLook(t, dt);
+  const idleWeight = idling ? transitionEased : (prevState === 'idle' ? 1 - transitionEased : 0);
+
+  const lookYaw = idleLook.yaw * idleWeight;
+  const lookPitch = idleLook.pitch * idleWeight;
+  const twitchProgress = idleTwitch.active ? 1 - (idleTwitch.timeLeft / idleTwitch.duration) : 0;
+  const twitchEase = (idleTwitch.active ? Math.sin(Math.PI * twitchProgress) : 0) * idleWeight;
+
+  const bodySway = Math.sin(t * s.bodyFreq) * s.bodyAmp
+                  + Math.sin(t * s.bodyFreq * 2.7 + 3.1) * s.bodyAmp * 0.4;
+  const bodyTwist = Math.sin(t * s.bodyFreq * 0.6 + 0.7) * s.bodyAmp * 0.7
+                   + Math.sin(t * s.bodyFreq * 2.1 + 1.4) * s.bodyAmp * 0.3;
+
+  applyOffset(rig.Root0_JNT, lookPitch * 0.2, bodyTwist + lookYaw * 1.0, bodySway * 0.5);
+  applyOffset(rig.Body0_JNT, bodySway * 0.6 + lookPitch * 0.3, bodyTwist * 0.6 + lookYaw * 0.85, 0);
+  applyOffset(rig.Body1_JNT, bodySway * 0.8 + lookPitch * 0.4, bodyTwist * 0.4 + lookYaw * 0.7, 0);
+
+  const headSway = Math.sin(t * s.headFreq) * s.headAmp
+                  + Math.sin(t * s.headFreq * 3.3 + 1.8) * s.headAmp * 0.35;
+  const headNod = Math.sin(t * s.headFreq * 1.7 + 1.0) * s.headAmp * 0.6
+                 + Math.sin(t * s.headFreq * 4.1 + 0.5) * s.headAmp * 0.25;
+  const tilt = s.headTilt || 0;
+  applyOffset(rig.Neck0_JNT, headNod * 0.5 + lookPitch * 0.7, headSway * 0.5 + lookYaw * 0.9, 0);
+  applyOffset(rig.Head0_JNT, headNod + lookPitch, headSway + lookYaw, tilt);
+
+  const eyeX = Math.sin(t * s.eyeFreq) * s.eyeAmp + twitchEase * idleTwitch.ex;
+  const eyeY = Math.cos(t * s.eyeFreq * 0.8) * s.eyeAmp + twitchEase * idleTwitch.ey;
+  applyOffset(rig.mainEye_JNT, eyeX, eyeY, twitchEase * idleTwitch.ez);
+  applyOffset(rig.upperEye_JNT, eyeX * 0.5, 0, 0);
+  applyOffset(rig.lowerEye_JNT, -eyeX * 0.5, 0, 0);
+
+  for (const c of cableBones) {
+    const phase = c.index * 0.5 + (c.side === 'Right' ? 1.5 : c.side === 'Main' ? 3.0 : 0);
+    const bend = Math.sin(t * s.cableFreq + phase) * s.cableAmp;
+    applyOffset(c, bend, bend * 0.6, 0);
+  }
+  for (const p of pistonBones) {
+    const phase = p.index * 0.8 + (p.side.includes('Right') ? 0.5 : p.side.includes('Left') ? 2.5 : 4.5);
+    const bend = Math.sin(t * s.pistonFreq + phase) * s.pistonAmp;
+    applyOffset(p, bend * 0.5, 0, bend);
+  }
+}
+
+const loader = new GLTFLoader();
+const mobileView = phoneLayout.matches;
+loader.load('chamber_from_scratch/chamber_environment.glb', (gltf) => {
+  const room = gltf.scene;
+  scene.add(room);
+}, undefined, (error) => console.error('Chamber environment failed to load:', error));
+
+const gladosModelUrl = mobileView ? 'glados_model_mobile.glb' : 'glados_model.glb';
+loader.load(gladosModelUrl, (gltf) => {
+  const model = gltf.scene;
+  scene.add(model);
+  model.scale.setScalar(0.15);
+  setupRig(model);
+  model.updateMatrixWorld(true);
+
+  const eyeBone = model.getObjectByName('mainEye_JNT') || model.getObjectByName('Head0_JNT');
+  const eyeWorld = eyeBone ? eyeBone.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 2.8, 0);
+  // Center the real eye beneath the overhead collar, with the suspension reaching into the roof.
+  model.position.x -= eyeWorld.x;
+  model.position.y += 5.2 - eyeWorld.y;
+  model.position.z -= eyeWorld.z;
+  model.updateMatrixWorld(true);
+  const placedEye = eyeBone ? eyeBone.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 5.2, 0);
+  camera.position.set(0, 4.9, mobileView ? 1.8 : 1.1);
+  camera.lookAt(0, 5.2, 0);
+  camera.near = 0.05;
+  camera.far = 100;
+  camera.fov = 46;
+  camera.updateProjectionMatrix();
+}, undefined, (error) => {
+  console.error('GLaDOS model failed to load:', error);
+  if (mobileView) loader.load('glados_model.glb', (gltf) => {
+    const model = gltf.scene;
+    scene.add(model);
+    model.scale.setScalar(0.15);
+    setupRig(model);
+    model.updateMatrixWorld(true);
+    const eyeBone = model.getObjectByName('mainEye_JNT') || model.getObjectByName('Head0_JNT');
+    const eyeWorld = eyeBone ? eyeBone.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(0, 2.8, 0);
+    model.position.x -= eyeWorld.x;
+    model.position.y += 5.2 - eyeWorld.y;
+    model.position.z -= eyeWorld.z;
+    camera.position.set(0, 4.9, 1.8);
+    camera.lookAt(0, 5.2, 0);
+    camera.near = 0.05;
+    camera.far = 100;
+    camera.fov = 46;
+    camera.updateProjectionMatrix();
+  }, undefined, fallbackError => console.error('Full GLaDOS model fallback failed:', fallbackError));
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (document.hidden || (phoneLayout.matches && document.body.classList.contains('terminal'))) return;
+  const t = clock.getElapsedTime(), dt = clock.getDelta();
+  const nextState = window.GladosViz.state || 'idle';
+  if (nextState !== currentState) {
+    prevState = currentState;
+    currentState = nextState;
+    transitionPending = true;
+  }
+  updateRig(t, dt);
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
+
+
+
+
+
