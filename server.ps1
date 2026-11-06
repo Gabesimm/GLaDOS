@@ -431,9 +431,6 @@ function Handle($ctx) {
         if ($path -eq '/') {
             $html = [IO.File]::ReadAllText((Join-Path $Root 'index.html'), [Text.Encoding]::UTF8).Replace('{{TOKEN}}', $Token)
             Send-Bytes $ctx.Response ([Text.Encoding]::UTF8.GetBytes($html)) 'text/html; charset=utf-8'
-        } elseif ($path -eq '/chamber-preview' -or $path -eq '/chamber-preview.html') {
-            $html = [IO.File]::ReadAllText((Join-Path $Root 'chamber-preview.html'), [Text.Encoding]::UTF8)
-            Send-Bytes $ctx.Response ([Text.Encoding]::UTF8.GetBytes($html)) 'text/html; charset=utf-8'
         } elseif ($path -eq '/glados_model.glb' -or $path -eq '/glados_model_mobile.glb' -or $path -eq '/chamber_model.glb' -or $path -eq '/chamber_from_scratch/chamber_environment.glb' -or $path -match '^/core_variants/[a-zA-Z0-9_-]+\.glb$') {
             # 3D model assets for the GLaDOS viewer scene, served straight from disk. The path is
             # resolved and checked against $Root before reading so a crafted path (e.g. "..") can't
